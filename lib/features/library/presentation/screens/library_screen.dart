@@ -5,6 +5,7 @@ import 'package:epub_reader/features/import/presentation/providers/import_provid
 import 'package:epub_reader/features/library/presentation/providers/library_provider.dart';
 import 'package:epub_reader/features/library/presentation/widgets/book_grid_item.dart';
 import 'package:epub_reader/features/library/presentation/widgets/book_list_item.dart';
+import 'package:epub_reader/features/library/presentation/widgets/library_search_delegate.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -138,7 +139,10 @@ class LibraryScreen extends ConsumerWidget {
                 IconButton(
                   icon: const Icon(Icons.search),
                   onPressed: () {
-                    // TODO: Implement search
+                    showSearch(
+                      context: context,
+                      delegate: LibrarySearchDelegate(ref),
+                    );
                   },
                   tooltip: 'Search',
                 ),
