@@ -32,6 +32,7 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> {
   bool _showProgressBar = true;
   List<db.Bookmark> _bookmarks = [];
   bool _isUserDraggingSlider = false;
+  int? _targetChapterIndex;
 
   // Test helpers
   @visibleForTesting
@@ -404,16 +405,12 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> {
                           final newIndex = value.round();
                           debugPrint('Slider drag ended at chapter $newIndex - navigating...');
                           if (newIndex < totalChapters) {
+                            _targetChapterIndex = newIndex;
                             _navigateToChapter(newIndex);
+                          } else {
+                            _isUserDraggingSlider = false;
+                            _targetChapterIndex = null;
                           }
-                          // Keep the flag set for a bit to prevent callback interference
-                          // during chapter navigation
-                          Future.delayed(const Duration(milliseconds: 300), () {
-                            if (mounted) {
-                              _isUserDraggingSlider = false;
-                              debugPrint('Slider drag flag cleared - callbacks re-enabled');
-                            }
-                          });
                         },
                       ),
                     ),
@@ -487,7 +484,29 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> {
           final chapterIndex = _chapters!.indexWhere(
             (ch) => ch.Anchor == chapter.Anchor,
           );
-          if (chapterIndex != -1 && chapterIndex != _currentChapterIndex) {
+
+          if (chapterIndex == -1) {
+            debugPrint('Chapter changed callback: unknown chapter');
+            return;
+          }
+
+          // If we're waiting for a specific chapter after slider navigation
+          if (_targetChapterIndex != null) {
+            if (chapterIndex == _targetChapterIndex) {
+              debugPrint('Chapter changed callback: reached target chapter $chapterIndex - clearing flags');
+              setState(() {
+                _currentChapterIndex = chapterIndex;
+                _isUserDraggingSlider = false;
+                _targetChapterIndex = null;
+              });
+            } else {
+              debugPrint('Callback blocked - waiting for target chapter $_targetChapterIndex, got $chapterIndex');
+            }
+            return;
+          }
+
+          // Normal chapter change (from scrolling, not slider)
+          if (chapterIndex != _currentChapterIndex) {
             debugPrint('Chapter changed callback: updating index from $_currentChapterIndex to $chapterIndex');
             setState(() {
               _currentChapterIndex = chapterIndex;
