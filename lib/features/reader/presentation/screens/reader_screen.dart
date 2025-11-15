@@ -530,24 +530,30 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
         builder: (context, constraints) {
           // Account for slider thumb radius (10px on each side)
           const thumbRadius = 10.0;
+          const indicatorSize = 8.0;
           final availableWidth = constraints.maxWidth - (thumbRadius * 2);
-          final leftPosition = (availableWidth * position) + thumbRadius - 3; // -3 to center the 6px dot
+          final leftPosition = (availableWidth * position) + thumbRadius - (indicatorSize / 2);
 
           return Positioned(
             left: leftPosition,
             child: Container(
-              width: 6,
-              height: 6,
+              width: indicatorSize,
+              height: indicatorSize,
               decoration: BoxDecoration(
-                color: colorScheme.tertiary,
+                color: colorScheme.primary,
                 shape: BoxShape.circle,
                 border: Border.all(
                   color: colorScheme.surface,
-                  width: 1.5,
+                  width: 2,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: colorScheme.shadow.withValues(alpha: 0.3),
+                    color: colorScheme.primary.withValues(alpha: 0.4),
+                    blurRadius: 4,
+                    spreadRadius: 1,
+                  ),
+                  BoxShadow(
+                    color: colorScheme.shadow.withValues(alpha: 0.2),
                     blurRadius: 2,
                     offset: const Offset(0, 1),
                   ),
