@@ -11,7 +11,8 @@ $files = @(
     'update_reading_progress.dart',
     'library_provider.dart',
     'book_details_screen.dart',
-    'library_search_delegate.dart'
+    'library_search_delegate.dart',
+    'reader_screen.dart'
 )
 
 $totalFound = 0

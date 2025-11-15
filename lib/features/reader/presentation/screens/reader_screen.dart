@@ -416,7 +416,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       // Show dialog to add note
       final note = await showDialog<String>(
         context: context,
-        builder: (context) => _BookmarkNoteDialog(),
+        builder: (context) => const BookmarkNoteDialog(),
       );
 
       if (note == null) return; // User cancelled
@@ -639,12 +639,14 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   }
 }
 
-class _BookmarkNoteDialog extends StatefulWidget {
+class BookmarkNoteDialog extends StatefulWidget {
+  const BookmarkNoteDialog({super.key});
+
   @override
-  State<_BookmarkNoteDialog> createState() => _BookmarkNoteDialogState();
+  State<BookmarkNoteDialog> createState() => _BookmarkNoteDialogState();
 }
 
-class _BookmarkNoteDialogState extends State<_BookmarkNoteDialog> {
+class _BookmarkNoteDialogState extends State<BookmarkNoteDialog> {
   final _noteController = TextEditingController();
 
   @override
