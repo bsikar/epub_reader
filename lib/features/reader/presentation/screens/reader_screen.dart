@@ -15,10 +15,11 @@ class ReaderScreen extends ConsumerStatefulWidget {
   const ReaderScreen({super.key, required this.book});
 
   @override
-  ConsumerState<ReaderScreen> createState() => _ReaderScreenState();
+  ConsumerState<ReaderScreen> createState() => ReaderScreenState();
 }
 
-class _ReaderScreenState extends ConsumerState<ReaderScreen> {
+@visibleForTesting
+class ReaderScreenState extends ConsumerState<ReaderScreen> {
   EpubController? _epubController;
   bool _isLoading = true;
   String? _errorMessage;
@@ -30,6 +31,17 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   int _currentChapterIndex = 0;
   bool _showProgressBar = true;
   List<db.Bookmark> _bookmarks = [];
+
+  // Test helpers
+  @visibleForTesting
+  void setChaptersForTesting(List<EpubChapter>? chapters) {
+    _chapters = chapters;
+  }
+
+  @visibleForTesting
+  void setBookmarksForTesting(List<db.Bookmark> bookmarks) {
+    _bookmarks = bookmarks;
+  }
 
   @override
   void initState() {

@@ -579,4 +579,456 @@ void main() {
       expect(find.byType(ReaderScreen), findsOneWidget);
     });
   });
+
+  group('ReaderScreen - getBookmarkChapterIndices', () {
+    testWidgets('should return empty set when chapters is null', (tester) async {
+      await tester.pumpWidget(createWidgetUnderTest(testBook));
+      await tester.pump();
+
+      final state = tester.state<ReaderScreenState>(find.byType(ReaderScreen));
+      final indices = state.getBookmarkChapterIndices();
+
+      expect(indices, isEmpty);
+    });
+
+    testWidgets('should return empty set when bookmarks is empty', (tester) async {
+      await tester.pumpWidget(createWidgetUnderTest(testBook));
+      await tester.pump();
+
+      final state = tester.state<ReaderScreenState>(find.byType(ReaderScreen));
+
+      // Set chapters but keep bookmarks empty
+      state.setChaptersForTesting([
+        FakeEpubChapter(Title: 'Chapter 1'),
+        FakeEpubChapter(Title: 'Chapter 2'),
+      ]);
+
+      final indices = state.getBookmarkChapterIndices();
+      expect(indices, isEmpty);
+    });
+
+    testWidgets('should find correct chapter index for matching bookmark', (tester) async {
+      await tester.pumpWidget(createWidgetUnderTest(testBook));
+      await tester.pump();
+
+      final state = tester.state<ReaderScreenState>(find.byType(ReaderScreen));
+
+      // Set up test data
+      state.setChaptersForTesting([
+        FakeEpubChapter(Title: 'Introduction'),
+        FakeEpubChapter(Title: 'Chapter 1'),
+        FakeEpubChapter(Title: 'Chapter 2'),
+      ]);
+
+      state.setBookmarksForTesting([
+        db.Bookmark(
+          id: 1,
+          bookId: 1,
+          cfiLocation: 'cfi1',
+          chapterName: 'Chapter 1',
+          pageNumber: 1,
+          createdAt: DateTime.now(),
+        ),
+      ]);
+
+      final indices = state.getBookmarkChapterIndices();
+      expect(indices, {1}); // Chapter 1 is at index 1
+    });
+
+    testWidgets('should handle multiple bookmarks in same chapter (Set removes duplicates)', (tester) async {
+      await tester.pumpWidget(createWidgetUnderTest(testBook));
+      await tester.pump();
+
+      final state = tester.state<ReaderScreenState>(find.byType(ReaderScreen));
+
+      state.setChaptersForTesting([
+        FakeEpubChapter(Title: 'Chapter 1'),
+        FakeEpubChapter(Title: 'Chapter 2'),
+      ]);
+
+      state.setBookmarksForTesting([
+        db.Bookmark(
+          id: 1,
+          bookId: 1,
+          cfiLocation: 'cfi1',
+          chapterName: 'Chapter 1',
+          pageNumber: 1,
+          createdAt: DateTime.now(),
+        ),
+        db.Bookmark(
+          id: 2,
+          bookId: 1,
+          cfiLocation: 'cfi2',
+          chapterName: 'Chapter 1',
+          pageNumber: 2,
+          createdAt: DateTime.now(),
+        ),
+      ]);
+
+      final indices = state.getBookmarkChapterIndices();
+      expect(indices, {0}); // Only one index for Chapter 1
+      expect(indices.length, 1); // Set removes duplicates
+    });
+
+    testWidgets('should find multiple chapter indices for bookmarks in different chapters', (tester) async {
+      await tester.pumpWidget(createWidgetUnderTest(testBook));
+      await tester.pump();
+
+      final state = tester.state<ReaderScreenState>(find.byType(ReaderScreen));
+
+      state.setChaptersForTesting([
+        FakeEpubChapter(Title: 'Chapter 1'),
+        FakeEpubChapter(Title: 'Chapter 2'),
+        FakeEpubChapter(Title: 'Chapter 3'),
+      ]);
+
+      state.setBookmarksForTesting([
+        db.Bookmark(
+          id: 1,
+          bookId: 1,
+          cfiLocation: 'cfi1',
+          chapterName: 'Chapter 1',
+          pageNumber: 1,
+          createdAt: DateTime.now(),
+        ),
+        db.Bookmark(
+          id: 2,
+          bookId: 1,
+          cfiLocation: 'cfi2',
+          chapterName: 'Chapter 3',
+          pageNumber: 1,
+          createdAt: DateTime.now(),
+        ),
+      ]);
+
+      final indices = state.getBookmarkChapterIndices();
+      expect(indices, {0, 2}); // Chapters 1 and 3
+    });
+
+    testWidgets('should ignore bookmarks with no matching chapter', (tester) async {
+      await tester.pumpWidget(createWidgetUnderTest(testBook));
+      await tester.pump();
+
+      final state = tester.state<ReaderScreenState>(find.byType(ReaderScreen));
+
+      state.setChaptersForTesting([
+        FakeEpubChapter(Title: 'Chapter 1'),
+        FakeEpubChapter(Title: 'Chapter 2'),
+      ]);
+
+      state.setBookmarksForTesting([
+        db.Bookmark(
+          id: 1,
+          bookId: 1,
+          cfiLocation: 'cfi1',
+          chapterName: 'Non-existent Chapter',
+          pageNumber: 1,
+          createdAt: DateTime.now(),
+        ),
+      ]);
+
+      final indices = state.getBookmarkChapterIndices();
+      expect(indices, isEmpty);
+    });
+
+    testWidgets('should trim whitespace when matching chapter names', (tester) async {
+      await tester.pumpWidget(createWidgetUnderTest(testBook));
+      await tester.pump();
+
+      final state = tester.state<ReaderScreenState>(find.byType(ReaderScreen));
+
+      state.setChaptersForTesting([
+        FakeEpubChapter(Title: 'Chapter 1'),
+      ]);
+
+      state.setBookmarksForTesting([
+        db.Bookmark(
+          id: 1,
+          bookId: 1,
+          cfiLocation: 'cfi1',
+          chapterName: '  Chapter 1  ',
+          pageNumber: 1,
+          createdAt: DateTime.now(),
+        ),
+      ]);
+
+      final indices = state.getBookmarkChapterIndices();
+      expect(indices, {0}); // Should match despite whitespace
+    });
+
+    testWidgets('should handle empty chapter titles', (tester) async {
+      await tester.pumpWidget(createWidgetUnderTest(testBook));
+      await tester.pump();
+
+      final state = tester.state<ReaderScreenState>(find.byType(ReaderScreen));
+
+      state.setChaptersForTesting([
+        FakeEpubChapter(Title: ''),
+        FakeEpubChapter(Title: 'Chapter 1'),
+      ]);
+
+      state.setBookmarksForTesting([
+        db.Bookmark(
+          id: 1,
+          bookId: 1,
+          cfiLocation: 'cfi1',
+          chapterName: '',
+          pageNumber: 1,
+          createdAt: DateTime.now(),
+        ),
+      ]);
+
+      final indices = state.getBookmarkChapterIndices();
+      expect(indices, isEmpty); // Empty titles should not match
+    });
+
+    testWidgets('should handle null chapter titles', (tester) async {
+      await tester.pumpWidget(createWidgetUnderTest(testBook));
+      await tester.pump();
+
+      final state = tester.state<ReaderScreenState>(find.byType(ReaderScreen));
+
+      state.setChaptersForTesting([
+        FakeEpubChapter(Title: null),
+        FakeEpubChapter(Title: 'Chapter 1'),
+      ]);
+
+      state.setBookmarksForTesting([
+        db.Bookmark(
+          id: 1,
+          bookId: 1,
+          cfiLocation: 'cfi1',
+          chapterName: 'Chapter 1',
+          pageNumber: 1,
+          createdAt: DateTime.now(),
+        ),
+      ]);
+
+      final indices = state.getBookmarkChapterIndices();
+      expect(indices, {1}); // Should find Chapter 1 at index 1
+    });
+  });
+
+  group('ReaderScreen - buildBookmarkIndicators', () {
+    testWidgets('should return empty list when totalChapters is 0', (tester) async {
+      await tester.pumpWidget(createWidgetUnderTest(testBook));
+      await tester.pump();
+
+      final state = tester.state<ReaderScreenState>(find.byType(ReaderScreen));
+      final colorScheme = Theme.of(tester.element(find.byType(ReaderScreen))).colorScheme;
+
+      final indicators = state.buildBookmarkIndicators(0, colorScheme);
+      expect(indicators, isEmpty);
+    });
+
+    testWidgets('should return empty list when totalChapters is 1', (tester) async {
+      await tester.pumpWidget(createWidgetUnderTest(testBook));
+      await tester.pump();
+
+      final state = tester.state<ReaderScreenState>(find.byType(ReaderScreen));
+      final colorScheme = Theme.of(tester.element(find.byType(ReaderScreen))).colorScheme;
+
+      final indicators = state.buildBookmarkIndicators(1, colorScheme);
+      expect(indicators, isEmpty);
+    });
+
+    testWidgets('should return empty list when no bookmark indices', (tester) async {
+      await tester.pumpWidget(createWidgetUnderTest(testBook));
+      await tester.pump();
+
+      final state = tester.state<ReaderScreenState>(find.byType(ReaderScreen));
+      final colorScheme = Theme.of(tester.element(find.byType(ReaderScreen))).colorScheme;
+
+      // No chapters or bookmarks set
+      final indicators = state.buildBookmarkIndicators(10, colorScheme);
+      expect(indicators, isEmpty);
+    });
+
+    testWidgets('should create correct number of indicator widgets', (tester) async {
+      await tester.pumpWidget(createWidgetUnderTest(testBook));
+      await tester.pump();
+
+      final state = tester.state<ReaderScreenState>(find.byType(ReaderScreen));
+      final colorScheme = Theme.of(tester.element(find.byType(ReaderScreen))).colorScheme;
+
+      // Set up 3 chapters with 2 bookmarks
+      state.setChaptersForTesting([
+        FakeEpubChapter(Title: 'Chapter 1'),
+        FakeEpubChapter(Title: 'Chapter 2'),
+        FakeEpubChapter(Title: 'Chapter 3'),
+      ]);
+
+      state.setBookmarksForTesting([
+        db.Bookmark(
+          id: 1,
+          bookId: 1,
+          cfiLocation: 'cfi1',
+          chapterName: 'Chapter 1',
+          pageNumber: 1,
+          createdAt: DateTime.now(),
+        ),
+        db.Bookmark(
+          id: 2,
+          bookId: 1,
+          cfiLocation: 'cfi2',
+          chapterName: 'Chapter 3',
+          pageNumber: 1,
+          createdAt: DateTime.now(),
+        ),
+      ]);
+
+      final indicators = state.buildBookmarkIndicators(3, colorScheme);
+      expect(indicators.length, 2); // Two indicators for two bookmarked chapters
+    });
+
+    testWidgets('should create LayoutBuilder widgets', (tester) async {
+      await tester.pumpWidget(createWidgetUnderTest(testBook));
+      await tester.pump();
+
+      final state = tester.state<ReaderScreenState>(find.byType(ReaderScreen));
+      final colorScheme = Theme.of(tester.element(find.byType(ReaderScreen))).colorScheme;
+
+      state.setChaptersForTesting([
+        FakeEpubChapter(Title: 'Chapter 1'),
+        FakeEpubChapter(Title: 'Chapter 2'),
+      ]);
+
+      state.setBookmarksForTesting([
+        db.Bookmark(
+          id: 1,
+          bookId: 1,
+          cfiLocation: 'cfi1',
+          chapterName: 'Chapter 1',
+          pageNumber: 1,
+          createdAt: DateTime.now(),
+        ),
+      ]);
+
+      final indicators = state.buildBookmarkIndicators(2, colorScheme);
+      expect(indicators.length, 1);
+      expect(indicators[0], isA<LayoutBuilder>());
+    });
+
+    testWidgets('should handle bookmarks in first chapter (position 0)', (tester) async {
+      await tester.pumpWidget(createWidgetUnderTest(testBook));
+      await tester.pump();
+
+      final state = tester.state<ReaderScreenState>(find.byType(ReaderScreen));
+      final colorScheme = Theme.of(tester.element(find.byType(ReaderScreen))).colorScheme;
+
+      state.setChaptersForTesting([
+        FakeEpubChapter(Title: 'Chapter 1'),
+        FakeEpubChapter(Title: 'Chapter 2'),
+        FakeEpubChapter(Title: 'Chapter 3'),
+      ]);
+
+      state.setBookmarksForTesting([
+        db.Bookmark(
+          id: 1,
+          bookId: 1,
+          cfiLocation: 'cfi1',
+          chapterName: 'Chapter 1',
+          pageNumber: 1,
+          createdAt: DateTime.now(),
+        ),
+      ]);
+
+      final indicators = state.buildBookmarkIndicators(3, colorScheme);
+      expect(indicators.length, 1);
+      // Position should be 0 / (3-1) = 0.0
+    });
+
+    testWidgets('should handle bookmarks in last chapter (position 1.0)', (tester) async {
+      await tester.pumpWidget(createWidgetUnderTest(testBook));
+      await tester.pump();
+
+      final state = tester.state<ReaderScreenState>(find.byType(ReaderScreen));
+      final colorScheme = Theme.of(tester.element(find.byType(ReaderScreen))).colorScheme;
+
+      state.setChaptersForTesting([
+        FakeEpubChapter(Title: 'Chapter 1'),
+        FakeEpubChapter(Title: 'Chapter 2'),
+        FakeEpubChapter(Title: 'Chapter 3'),
+      ]);
+
+      state.setBookmarksForTesting([
+        db.Bookmark(
+          id: 1,
+          bookId: 1,
+          cfiLocation: 'cfi1',
+          chapterName: 'Chapter 3',
+          pageNumber: 1,
+          createdAt: DateTime.now(),
+        ),
+      ]);
+
+      final indicators = state.buildBookmarkIndicators(3, colorScheme);
+      expect(indicators.length, 1);
+      // Position should be 2 / (3-1) = 1.0
+    });
+
+    testWidgets('should handle bookmarks in middle chapter', (tester) async {
+      await tester.pumpWidget(createWidgetUnderTest(testBook));
+      await tester.pump();
+
+      final state = tester.state<ReaderScreenState>(find.byType(ReaderScreen));
+      final colorScheme = Theme.of(tester.element(find.byType(ReaderScreen))).colorScheme;
+
+      state.setChaptersForTesting([
+        FakeEpubChapter(Title: 'Chapter 1'),
+        FakeEpubChapter(Title: 'Chapter 2'),
+        FakeEpubChapter(Title: 'Chapter 3'),
+      ]);
+
+      state.setBookmarksForTesting([
+        db.Bookmark(
+          id: 1,
+          bookId: 1,
+          cfiLocation: 'cfi1',
+          chapterName: 'Chapter 2',
+          pageNumber: 1,
+          createdAt: DateTime.now(),
+        ),
+      ]);
+
+      final indicators = state.buildBookmarkIndicators(3, colorScheme);
+      expect(indicators.length, 1);
+      // Position should be 1 / (3-1) = 0.5
+    });
+
+    testWidgets('should deduplicate bookmarks in same chapter', (tester) async {
+      await tester.pumpWidget(createWidgetUnderTest(testBook));
+      await tester.pump();
+
+      final state = tester.state<ReaderScreenState>(find.byType(ReaderScreen));
+      final colorScheme = Theme.of(tester.element(find.byType(ReaderScreen))).colorScheme;
+
+      state.setChaptersForTesting([
+        FakeEpubChapter(Title: 'Chapter 1'),
+        FakeEpubChapter(Title: 'Chapter 2'),
+      ]);
+
+      state.setBookmarksForTesting([
+        db.Bookmark(
+          id: 1,
+          bookId: 1,
+          cfiLocation: 'cfi1',
+          chapterName: 'Chapter 1',
+          pageNumber: 1,
+          createdAt: DateTime.now(),
+        ),
+        db.Bookmark(
+          id: 2,
+          bookId: 1,
+          cfiLocation: 'cfi2',
+          chapterName: 'Chapter 1',
+          pageNumber: 2,
+          createdAt: DateTime.now(),
+        ),
+      ]);
+
+      final indicators = state.buildBookmarkIndicators(2, colorScheme);
+      expect(indicators.length, 1); // Only one indicator even though two bookmarks
+    });
+  });
 }

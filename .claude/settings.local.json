@@ -7,7 +7,8 @@
       "Bash(nul)",
       "Bash(setx:*)",
       "Bash(where msedge 2)",
-      "Bash(set \"CHROME_EXECUTABLE=C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe\")"
+      "Bash(set \"CHROME_EXECUTABLE=C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe\")",
+      "Bash(tree:*)"
     ],
     "deny": [],
     "ask": []
