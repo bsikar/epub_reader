@@ -237,18 +237,29 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     final totalChapters = _chapters?.length ?? 0;
     if (totalChapters == 0) return const SizedBox.shrink();
 
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Positioned(
       left: 0,
       right: 0,
       bottom: 0,
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeInOut,
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface.withOpacity(0.95),
+          color: colorScheme.surface.withValues(alpha: 0.98),
+          border: Border(
+            top: BorderSide(
+              color: colorScheme.outline.withValues(alpha: 0.2),
+              width: 1,
+            ),
+          ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 8,
-              offset: const Offset(0, -2),
+              color: colorScheme.shadow.withValues(alpha: 0.08),
+              blurRadius: 12,
+              offset: const Offset(0, -4),
             ),
           ],
         ),
@@ -257,7 +268,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.fromLTRB(20, 12, 12, 8),
                 child: Row(
                   children: [
                     Expanded(
@@ -267,72 +278,105 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                         children: [
                           Text(
                             'Chapter ${_currentChapterIndex + 1} of $totalChapters',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              fontWeight: FontWeight.w500,
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: colorScheme.onSurface,
                             ),
                           ),
                           if (_chapters != null &&
                               _currentChapterIndex < _chapters!.length)
-                            Text(
-                              _chapters![_currentChapterIndex].Title?.trim() ?? '',
-                              style: Theme.of(context).textTheme.bodySmall,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Text(
+                                _chapters![_currentChapterIndex].Title?.trim() ?? '',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
                         ],
                       ),
                     ),
                     IconButton(
                       icon: Icon(
-                        _showProgressBar ? Icons.expand_more : Icons.expand_less,
-                        size: 20,
+                        _showProgressBar ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_up,
+                        size: 24,
                       ),
                       onPressed: () {
                         setState(() {
                           _showProgressBar = !_showProgressBar;
                         });
                       },
-                      tooltip: _showProgressBar ? 'Hide progress' : 'Show progress',
+                      tooltip: _showProgressBar ? 'Hide progress bar' : 'Show progress bar',
+                      color: colorScheme.primary,
                     ),
                   ],
                 ),
               ),
-              SliderTheme(
-                data: SliderTheme.of(context).copyWith(
-                  trackHeight: 3,
-                  thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
-                  overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
-                ),
-                child: Slider(
-                  value: _currentChapterIndex.toDouble(),
-                  min: 0,
-                  max: (totalChapters - 1).toDouble(),
-                  divisions: totalChapters > 1 ? totalChapters - 1 : null,
-                  label: 'Chapter ${_currentChapterIndex + 1}',
-                  onChanged: (value) {
-                    final newIndex = value.round();
-                    if (newIndex != _currentChapterIndex &&
-                        newIndex < totalChapters) {
-                      setState(() {
-                        _currentChapterIndex = newIndex;
-                      });
-                      _navigateToChapter(newIndex);
-                    }
-                  },
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: SliderTheme(
+                  data: SliderTheme.of(context).copyWith(
+                    trackHeight: 4,
+                    activeTrackColor: colorScheme.primary,
+                    inactiveTrackColor: colorScheme.surfaceContainerHighest,
+                    thumbColor: colorScheme.primary,
+                    overlayColor: colorScheme.primary.withValues(alpha: 0.12),
+                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10),
+                    overlayShape: const RoundSliderOverlayShape(overlayRadius: 20),
+                    valueIndicatorColor: colorScheme.primaryContainer,
+                    valueIndicatorTextStyle: theme.textTheme.labelSmall?.copyWith(
+                      color: colorScheme.onPrimaryContainer,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    showValueIndicator: ShowValueIndicator.onlyForDiscrete,
+                  ),
+                  child: Slider(
+                    value: _currentChapterIndex.toDouble(),
+                    min: 0,
+                    max: (totalChapters - 1).toDouble(),
+                    divisions: totalChapters > 1 ? totalChapters - 1 : null,
+                    label: 'Chapter ${_currentChapterIndex + 1}',
+                    onChanged: (value) {
+                      final newIndex = value.round();
+                      if (newIndex != _currentChapterIndex &&
+                          newIndex < totalChapters) {
+                        setState(() {
+                          _currentChapterIndex = newIndex;
+                        });
+                        _navigateToChapter(newIndex);
+                      }
+                    },
+                  ),
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.only(left: 16, right: 16, bottom: 8),
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      '${((_currentChapterIndex + 1) / totalChapters * 100).toStringAsFixed(0)}%',
-                      style: Theme.of(context).textTheme.bodySmall,
+                      '${((_currentChapterIndex + 1) / totalChapters * 100).toStringAsFixed(0)}% complete',
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
-                    Text(
-                      'Chapter ${_currentChapterIndex + 1}/$totalChapters',
-                      style: Theme.of(context).textTheme.bodySmall,
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: colorScheme.primaryContainer.withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        'Ch. ${_currentChapterIndex + 1}/$totalChapters',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: colorScheme.onPrimaryContainer,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
                   ],
                 ),
