@@ -12,53 +12,53 @@ This document outlines the phased implementation plan for building a fully-fledg
 ### Tasks
 
 #### 1.1 Project Configuration
-- [ ] Update `pubspec.yaml` with all dependencies
-- [ ] Configure analysis_options.yaml for strict linting
-- [ ] Set up build_runner for code generation
-- [ ] Configure platform-specific settings (Android, iOS, Windows, macOS, Linux)
+- [x] Update `pubspec.yaml` with all dependencies
+- [x] Configure analysis_options.yaml for strict linting
+- [x] Set up build_runner for code generation
+- [x] Configure platform-specific settings (Android, iOS, Windows, macOS, Linux)
 
 #### 1.2 Folder Structure
-- [ ] Create feature-first folder structure
-- [ ] Set up core/ directory (config, error, utils, database, widgets)
+- [x] Create feature-first folder structure
+- [x] Set up core/ directory (config, error, utils, database, widgets)
 - [ ] Set up shared/ directory (services, widgets)
-- [ ] Create feature directories (library, reader, import, dictionary, etc.)
+- [x] Create feature directories (library, reader, import, dictionary, etc.)
 
 #### 1.3 Dependency Injection
-- [ ] Configure get_it service locator
-- [ ] Set up injectable with code generation
-- [ ] Create injection.dart with all registrations
-- [ ] Test DI container initialization
+- [x] Configure get_it service locator
+- [x] Set up injectable with code generation
+- [x] Create injection.dart with all registrations
+- [x] Test DI container initialization
 
 #### 1.4 Error Handling
-- [ ] Create failure classes (StorageFailure, ParsingFailure, etc.)
-- [ ] Create exception classes
-- [ ] Set up Either type (fpdart)
-- [ ] Create error handling utilities
+- [x] Create failure classes (StorageFailure, ParsingFailure, etc.)
+- [x] Create exception classes
+- [x] Set up Either type (fpdart)
+- [x] Create error handling utilities
 - [ ] Create global error handler
 
 #### 1.5 Database Setup
-- [ ] Design Drift database schema (books table)
-- [ ] Design Drift database schema (bookmarks table)
-- [ ] Design Drift database schema (highlights table)
-- [ ] Design Drift database schema (annotations table)
-- [ ] Design Drift database schema (collections table)
-- [ ] Design Drift database schema (reading_sessions table)
-- [ ] Create database migration strategy
-- [ ] Set up database connection
-- [ ] Create DAOs (Data Access Objects)
+- [x] Design Drift database schema (books table)
+- [x] Design Drift database schema (bookmarks table)
+- [x] Design Drift database schema (highlights table)
+- [x] Design Drift database schema (annotations table)
+- [x] Design Drift database schema (collections table)
+- [x] Design Drift database schema (reading_sessions table)
+- [x] Create database migration strategy
+- [x] Set up database connection
+- [x] Create DAOs (Data Access Objects)
 
 #### 1.6 Theme System
-- [ ] Create AppTheme class
-- [ ] Define light theme
-- [ ] Define dark theme
-- [ ] Define sepia theme
-- [ ] Create custom theme builder
+- [x] Create AppTheme class
+- [x] Define light theme
+- [x] Define dark theme
+- [x] Define sepia theme
+- [x] Create custom theme builder
 - [ ] Set up theme provider (Riverpod)
 
 #### 1.7 Core Widgets
-- [ ] Create LoadingIndicator widget
-- [ ] Create ErrorView widget
-- [ ] Create EmptyState widget
+- [x] Create LoadingIndicator widget
+- [x] Create ErrorView widget
+- [x] Create EmptyState widget
 - [ ] Create CustomButton widget
 - [ ] Create CustomTextField widget
 - [ ] Create CustomDialog widget
@@ -79,74 +79,74 @@ This document outlines the phased implementation plan for building a fully-fledg
 ### Tasks
 
 #### 2.1 File Service
-- [ ] Create FileService for file operations
-- [ ] Implement file picker integration
-- [ ] Create file validation (EPUB format check)
-- [ ] Implement file copying to app directory
-- [ ] Create file deletion with cleanup
+- [x] Create FileService for file operations
+- [x] Implement file picker integration
+- [x] Create file validation (EPUB format check)
+- [x] Implement file copying to app directory
+- [x] Create file deletion with cleanup
 
 #### 2.2 EPUB Parser
-- [ ] Research epub_pro vs epub_view vs vocsy_epub_viewer
-- [ ] Implement EPUB metadata extraction
-- [ ] Create cover image extraction
+- [x] Research epub_pro vs epub_view vs vocsy_epub_viewer
+- [x] Implement EPUB metadata extraction
+- [x] Create cover image extraction
 - [ ] Implement thumbnail generation
-- [ ] Handle parsing errors gracefully
+- [x] Handle parsing errors gracefully
 - [ ] Create progress callback for large files
 
 #### 2.3 Import Feature
 **Data Layer**:
-- [ ] Create EpubMetadata model
+- [x] Create EpubMetadata model
 - [ ] Create ImportRepository interface
 - [ ] Create ImportRepositoryImpl
 - [ ] Create EpubParserDataSource
 - [ ] Implement isolate-based parsing
 
 **Domain Layer**:
-- [ ] Create EpubMetadata entity
+- [x] Create EpubMetadata entity
 - [ ] Create ImportRepository interface
-- [ ] Create ImportEpub use case
-- [ ] Create ExtractMetadata use case
+- [x] Create ImportEpub use case
+- [x] Create ExtractMetadata use case
 
 **Presentation Layer**:
-- [ ] Create ImportProvider (Riverpod)
+- [x] Create ImportProvider (Riverpod)
 - [ ] Create ImportProgressWidget
 - [ ] Create import error dialogs
-- [ ] Add import to library screen
+- [x] Add import to library screen
 
 #### 2.4 Library Feature
 **Data Layer**:
-- [ ] Create Book model (Drift table)
-- [ ] Create LibraryRepository interface
-- [ ] Create LibraryRepositoryImpl
-- [ ] Create LibraryLocalDataSource
-- [ ] Implement CRUD operations
+- [x] Create Book model (Drift table)
+- [x] Create LibraryRepository interface
+- [x] Create LibraryRepositoryImpl
+- [x] Create LibraryLocalDataSource
+- [x] Implement CRUD operations
 
 **Domain Layer**:
-- [ ] Create Book entity
-- [ ] Create LibraryRepository interface
-- [ ] Create GetBooks use case
-- [ ] Create GetBookById use case
-- [ ] Create DeleteBook use case
+- [x] Create Book entity
+- [x] Create LibraryRepository interface
+- [x] Create GetBooks use case
+- [x] Create GetBookById use case
+- [x] Create DeleteBook use case
 - [ ] Create UpdateBookMetadata use case
 
 **Presentation Layer**:
-- [ ] Create LibraryProvider (Riverpod)
-- [ ] Create LibraryScreen
-- [ ] Create BookCard widget (grid view)
-- [ ] Create BookListItem widget (list view)
-- [ ] Implement view mode toggle (grid/list)
+- [x] Create LibraryProvider (Riverpod)
+- [x] Create LibraryScreen
+- [x] Create BookCard widget (grid view)
+- [x] Create BookListItem widget (list view)
+- [x] Implement view mode toggle (grid/list)
 - [ ] Implement sort options
 - [ ] Implement filter options
-- [ ] Create empty state
-- [ ] Add pull-to-refresh
-- [ ] Implement search in library
+- [x] Create empty state
+- [x] Add pull-to-refresh
+- [x] Implement search in library
 
 #### 2.5 Book Details
-- [ ] Create BookDetailsScreen
-- [ ] Display full metadata
+- [x] Create BookDetailsScreen
+- [x] Display full metadata
 - [ ] Show reading statistics
 - [ ] Implement metadata editing
-- [ ] Add delete book functionality
+- [x] Add delete book functionality
 - [ ] Show bookmarks/highlights count
 
 **Deliverables**:
@@ -164,63 +164,63 @@ This document outlines the phased implementation plan for building a fully-fledg
 ### Tasks
 
 #### 3.1 Reader Setup
-- [ ] Choose EPUB rendering package (epub_view recommended)
-- [ ] Create ReaderScreen
-- [ ] Implement basic EPUB rendering
+- [x] Choose EPUB rendering package (epub_view recommended)
+- [x] Create ReaderScreen
+- [x] Implement basic EPUB rendering
 - [ ] Add page/scroll mode toggle
-- [ ] Implement CFI-based position tracking
+- [x] Implement CFI-based position tracking
 - [ ] Add auto-hide UI controls
 
 #### 3.2 Navigation
-- [ ] Implement page turn (tap/swipe)
-- [ ] Add previous/next chapter buttons
-- [ ] Create progress slider
+- [x] Implement page turn (tap/swipe)
+- [x] Add previous/next chapter buttons
+- [x] Create progress slider
 - [ ] Add page number indicator
 - [ ] Implement smooth animations
 
 #### 3.3 Table of Contents
-- [ ] Extract TOC from EPUB
+- [x] Extract TOC from EPUB
 - [ ] Create TocDrawer widget
 - [ ] Implement hierarchical chapter list
 - [ ] Add current chapter highlighting
-- [ ] Implement jump-to-chapter
+- [x] Implement jump-to-chapter
 - [ ] Add search within TOC
 
 #### 3.4 Reading Progress
 **Data Layer**:
-- [ ] Create ReadingProgress model
+- [x] Create ReadingProgress model
 - [ ] Update ReaderRepository
-- [ ] Implement auto-save mechanism
+- [x] Implement auto-save mechanism
 
 **Domain Layer**:
-- [ ] Create SaveProgress use case
-- [ ] Create GetProgress use case
+- [x] Create SaveProgress use case
+- [x] Create GetProgress use case
 
 **Presentation Layer**:
-- [ ] Track current CFI position
-- [ ] Save progress on page turn
-- [ ] Save progress on app pause
-- [ ] Display progress percentage
+- [x] Track current CFI position
+- [x] Save progress on page turn
+- [x] Save progress on app pause
+- [x] Display progress percentage
 - [ ] Show estimated time remaining
 
 #### 3.5 Bookmarks
 **Data Layer**:
-- [ ] Create Bookmark model (Drift table)
-- [ ] Implement bookmark CRUD in repository
+- [x] Create Bookmark model (Drift table)
+- [x] Implement bookmark CRUD in repository
 
 **Domain Layer**:
-- [ ] Create Bookmark entity
-- [ ] Create AddBookmark use case
-- [ ] Create GetBookmarks use case
-- [ ] Create DeleteBookmark use case
+- [x] Create Bookmark entity
+- [x] Create AddBookmark use case
+- [x] Create GetBookmarks use case
+- [x] Create DeleteBookmark use case
 
 **Presentation Layer**:
-- [ ] Create BookmarksDrawer widget
-- [ ] Add bookmark button in reader
-- [ ] Display bookmark list
-- [ ] Implement jump-to-bookmark
-- [ ] Add bookmark notes
-- [ ] Show bookmark indicators in progress slider
+- [x] Create BookmarksDrawer widget
+- [x] Add bookmark button in reader
+- [x] Display bookmark list
+- [x] Implement jump-to-bookmark
+- [x] Add bookmark notes
+- [x] Show bookmark indicators in progress slider
 
 **Deliverables**:
 - Fully functional EPUB reader
@@ -238,18 +238,18 @@ This document outlines the phased implementation plan for building a fully-fledg
 
 #### 4.1 Highlights & Annotations
 **Data Layer**:
-- [ ] Create Highlight model (Drift table)
-- [ ] Create Annotation model (Drift table)
-- [ ] Implement highlight CRUD
+- [x] Create Highlight model (Drift table)
+- [x] Create Annotation model (Drift table)
+- [x] Implement highlight CRUD
 - [ ] Implement annotation CRUD
 
 **Domain Layer**:
-- [ ] Create Highlight entity
+- [x] Create Highlight entity
 - [ ] Create Annotation entity
-- [ ] Create AddHighlight use case
-- [ ] Create GetHighlights use case
-- [ ] Create UpdateHighlight use case
-- [ ] Create DeleteHighlight use case
+- [x] Create AddHighlight use case
+- [x] Create GetHighlights use case
+- [x] Create UpdateHighlight use case
+- [x] Create DeleteHighlight use case
 - [ ] Create AddAnnotation use case
 
 **Presentation Layer**:
@@ -276,7 +276,7 @@ This document outlines the phased implementation plan for building a fully-fledg
 **Font Settings**:
 - [ ] Create FontSettingsDrawer
 - [ ] Implement font family picker
-- [ ] Add font size slider (12-48pt)
+- [x] Add font size slider (12-48pt)
 - [ ] Add line height slider
 - [ ] Add letter spacing slider
 - [ ] Add paragraph spacing slider
@@ -285,7 +285,7 @@ This document outlines the phased implementation plan for building a fully-fledg
 
 **Theme Settings**:
 - [ ] Create ThemeSettingsDrawer
-- [ ] Implement light/dark/sepia themes
+- [x] Implement light/dark/sepia themes
 - [ ] Add custom theme builder
 - [ ] Add auto-switch with system theme
 - [ ] Implement margin options
@@ -363,8 +363,8 @@ This document outlines the phased implementation plan for building a fully-fledg
 
 #### 5.5 Dictionary History & Favorites
 **Data Layer**:
-- [ ] Create DictionaryHistory model (Drift table)
-- [ ] Create DictionaryFavorites model (Drift table)
+- [x] Create DictionaryHistory model (Drift table)
+- [x] Create DictionaryFavorites model (Drift table)
 - [ ] Implement history tracking
 - [ ] Implement favorites management
 
@@ -399,8 +399,8 @@ This document outlines the phased implementation plan for building a fully-fledg
 
 #### 6.1 Collections System
 **Data Layer**:
-- [ ] Create Collection model (Drift table)
-- [ ] Create book-collection junction table
+- [x] Create Collection model (Drift table)
+- [x] Create book-collection junction table
 - [ ] Implement collections CRUD
 
 **Domain Layer**:
@@ -438,7 +438,7 @@ This document outlines the phased implementation plan for building a fully-fledg
 
 #### 7.1 Reading Sessions
 **Data Layer**:
-- [ ] Create ReadingSession model (Drift table)
+- [x] Create ReadingSession model (Drift table)
 - [ ] Track session start/end times
 - [ ] Calculate pages read per session
 - [ ] Calculate total time read
@@ -483,7 +483,7 @@ This document outlines the phased implementation plan for building a fully-fledg
 
 #### 8.2 Settings Persistence
 - [ ] Create SettingsRepository
-- [ ] Save all preferences to database
+- [x] Save all preferences to database
 - [ ] Load settings on app start
 - [ ] Implement settings sync
 
@@ -542,9 +542,9 @@ This document outlines the phased implementation plan for building a fully-fledg
 #### 10.2 Rendering Optimization
 - [ ] Add RepaintBoundary to widgets
 - [ ] Use const constructors
-- [ ] Implement ListView.builder for lists
+- [x] Implement ListView.builder for lists
 - [ ] Optimize database queries
-- [ ] Add database indexes
+- [x] Add database indexes
 - [ ] Profile rendering performance
 - [ ] Optimize frame rate (target 60fps)
 
@@ -628,22 +628,22 @@ This document outlines the phased implementation plan for building a fully-fledg
 ### Tasks
 
 #### 13.1 Unit Tests
-- [ ] Test all use cases (library feature)
-- [ ] Test all use cases (reader feature)
+- [x] Test all use cases (library feature)
+- [x] Test all use cases (reader feature)
 - [ ] Test all use cases (import feature)
 - [ ] Test all use cases (dictionary feature)
 - [ ] Test all repositories
-- [ ] Test all services
+- [x] Test all services
 - [ ] Test utility functions
 - [ ] Achieve 70% code coverage
 
 #### 13.2 Widget Tests
 - [ ] Test LibraryScreen
-- [ ] Test ReaderScreen
-- [ ] Test BookDetailsScreen
+- [x] Test ReaderScreen
+- [x] Test BookDetailsScreen
 - [ ] Test DictionaryScreen
 - [ ] Test SettingsScreen
-- [ ] Test all major widgets
+- [x] Test all major widgets
 - [ ] Test user interactions
 
 #### 13.3 Integration Tests

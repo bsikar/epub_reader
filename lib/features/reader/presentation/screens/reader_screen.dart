@@ -382,12 +382,19 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> {
                         divisions: totalChapters > 1 ? totalChapters - 1 : null,
                         label: 'Chapter ${_currentChapterIndex + 1}',
                         onChanged: (value) {
+                          // Update slider position immediately for smooth dragging
                           final newIndex = value.round();
                           if (newIndex != _currentChapterIndex &&
                               newIndex < totalChapters) {
                             setState(() {
                               _currentChapterIndex = newIndex;
                             });
+                          }
+                        },
+                        onChangeEnd: (value) {
+                          // Navigate to chapter only when user finishes dragging
+                          final newIndex = value.round();
+                          if (newIndex < totalChapters) {
                             _navigateToChapter(newIndex);
                           }
                         },
