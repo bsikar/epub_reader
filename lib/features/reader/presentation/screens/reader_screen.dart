@@ -861,7 +861,6 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> {
     );
   }
 }
-  // coverage:ignore-end
 
 class BookmarkNoteDialog extends StatefulWidget {
   const BookmarkNoteDialog({super.key});
