@@ -24,6 +24,8 @@ import 'features/library/domain/usecases/delete_book.dart' as _i120;
 import 'features/library/domain/usecases/get_all_books.dart' as _i387;
 import 'features/library/domain/usecases/get_recent_books.dart' as _i578;
 import 'features/reader/domain/usecases/add_bookmark.dart' as _i915;
+import 'features/reader/domain/usecases/delete_bookmark.dart' as _i916;
+import 'features/reader/domain/usecases/get_bookmarks.dart' as _i574;
 import 'features/reader/domain/usecases/update_reading_progress.dart' as _i530;
 
 extension GetItInjectableX on _i174.GetIt {
@@ -39,6 +41,12 @@ extension GetItInjectableX on _i174.GetIt {
     );
     gh.factory<_i915.AddBookmark>(
       () => _i915.AddBookmark(gh<_i111.AppDatabase>()),
+    );
+    gh.factory<_i916.DeleteBookmark>(
+      () => _i916.DeleteBookmark(gh<_i111.AppDatabase>()),
+    );
+    gh.factory<_i574.GetBookmarks>(
+      () => _i574.GetBookmarks(gh<_i111.AppDatabase>()),
     );
     gh.factory<_i921.LibraryRepository>(
       () => _i1002.LibraryRepositoryImpl(gh<_i856.LibraryLocalDataSource>()),

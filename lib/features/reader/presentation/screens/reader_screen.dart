@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:async';
 import 'package:epub_reader/features/library/domain/entities/book.dart';
 import 'package:epub_reader/features/reader/presentation/providers/reader_providers.dart';
+import 'package:epub_reader/features/reader/presentation/widgets/bookmarks_drawer.dart';
 import 'package:epub_view/epub_view.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -126,9 +127,16 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                   tooltip: 'Search in book',
                 ),
                 IconButton(
-                  icon: const Icon(Icons.bookmark_border),
+                  icon: const Icon(Icons.bookmark_add),
                   onPressed: _addBookmark,
                   tooltip: 'Add bookmark',
+                ),
+                IconButton(
+                  icon: const Icon(Icons.bookmarks),
+                  onPressed: () {
+                    Scaffold.of(context).openEndDrawer();
+                  },
+                  tooltip: 'View bookmarks',
                 ),
                 IconButton(
                   icon: const Icon(Icons.format_size),
@@ -160,6 +168,14 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
               ]
             : [],
       ),
+      endDrawer: widget.book.id != null
+          ? BookmarksDrawer(
+              bookId: widget.book.id!,
+              onBookmarkTap: (cfi) {
+                _epubController?.gotoEpubCfi(cfi);
+              },
+            )
+          : null,
       body: _buildBody(),
     );
   }
