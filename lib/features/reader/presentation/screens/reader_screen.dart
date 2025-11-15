@@ -384,15 +384,16 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> {
                         label: 'Chapter ${_currentChapterIndex + 1}',
                         onChangeStart: (value) {
                           // Mark that user is actively dragging
-                          setState(() {
-                            _isUserDraggingSlider = true;
-                          });
+                          // Set flag synchronously to prevent race conditions
+                          _isUserDraggingSlider = true;
+                          debugPrint('Slider drag started - callbacks blocked');
                         },
                         onChanged: (value) {
                           // Update slider position immediately for smooth dragging
                           final newIndex = value.round();
                           if (newIndex != _currentChapterIndex &&
                               newIndex < totalChapters) {
+                            debugPrint('Slider position: $_currentChapterIndex -> $newIndex');
                             setState(() {
                               _currentChapterIndex = newIndex;
                             });
@@ -401,12 +402,18 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> {
                         onChangeEnd: (value) {
                           // Navigate to chapter only when user finishes dragging
                           final newIndex = value.round();
-                          setState(() {
-                            _isUserDraggingSlider = false;
-                          });
+                          debugPrint('Slider drag ended at chapter $newIndex - navigating...');
                           if (newIndex < totalChapters) {
                             _navigateToChapter(newIndex);
                           }
+                          // Keep the flag set for a bit to prevent callback interference
+                          // during chapter navigation
+                          Future.delayed(const Duration(milliseconds: 300), () {
+                            if (mounted) {
+                              _isUserDraggingSlider = false;
+                              debugPrint('Slider drag flag cleared - callbacks re-enabled');
+                            }
+                          });
                         },
                       ),
                     ),
@@ -467,6 +474,7 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> {
   void _onChapterChanged(dynamic chapterValue) {
     // Don't update chapter index if user is actively dragging the slider
     if (_isUserDraggingSlider) {
+      debugPrint('Callback blocked - user is dragging slider');
       return;
     }
 
@@ -480,6 +488,7 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> {
             (ch) => ch.Anchor == chapter.Anchor,
           );
           if (chapterIndex != -1 && chapterIndex != _currentChapterIndex) {
+            debugPrint('Chapter changed callback: updating index from $_currentChapterIndex to $chapterIndex');
             setState(() {
               _currentChapterIndex = chapterIndex;
             });
@@ -490,7 +499,6 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> {
         debugPrint('Chapter changed (unable to determine index): $e');
       }
     }
-    debugPrint('Chapter changed to index: $_currentChapterIndex');
   }
 
   void _onDocumentLoaded(EpubBook document) {
