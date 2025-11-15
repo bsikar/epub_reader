@@ -1,5 +1,7 @@
+import 'dart:io';
 import 'package:epub_reader/features/library/domain/entities/book.dart';
 import 'package:epub_reader/features/library/presentation/widgets/book_list_item.dart';
+import 'package:epub_reader/features/reader/presentation/screens/reader_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -170,6 +172,30 @@ void main() {
         // Assert
         expect(find.byType(Slidable), findsOneWidget);
       });
+
+      testWidgets('should navigate to ReaderScreen when tapped in normal mode', (tester) async {
+        // Arrange
+        final mockObserver = NavigatorObserver();
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: BookListItem(
+                book: testBook,
+                isSelectionMode: false,
+              ),
+            ),
+            navigatorObservers: [mockObserver],
+          ),
+        );
+
+        // Act
+        await tester.tap(find.byType(InkWell));
+        await tester.pump(); // Start navigation animation
+        await tester.pump(const Duration(seconds: 1)); // Complete animation
+
+        // Assert - Check that a route was pushed
+        expect(find.byType(ReaderScreen), findsOneWidget);
+      });
     });
 
     group('Swipe to Delete', () {
@@ -279,6 +305,94 @@ void main() {
 
         // Assert
         expect(find.byIcon(Icons.menu_book), findsOneWidget);
+      });
+
+      testWidgets('should display cover image when file exists', (tester) async {
+        // Arrange - Create a temporary file to act as cover
+        final tempDir = Directory.systemTemp.createTempSync('cover_test_');
+        final tempFile = File('${tempDir.path}/cover.jpg');
+        tempFile.writeAsBytesSync([0, 0, 0, 0]); // Write dummy bytes
+
+        final bookWithCover = Book(
+          id: 1,
+          title: 'Test Book',
+          author: 'Test Author',
+          filePath: '/test/path/book.epub',
+          addedDate: DateTime(2025, 1, 1),
+          coverPath: tempFile.path,
+        );
+
+        try {
+          // Act
+          await tester.pumpWidget(createWidgetUnderTest(book: bookWithCover));
+
+          // Assert - Should use Image.file instead of Icon
+          expect(find.byType(Image), findsOneWidget);
+          expect(find.byIcon(Icons.menu_book), findsNothing);
+        } finally {
+          // Clean up
+          tempDir.deleteSync(recursive: true);
+        }
+      });
+    });
+
+    group('Date Formatting', () {
+      testWidgets('should display "X days ago" for dates within last week', (tester) async {
+        // Arrange
+        final now = DateTime.now();
+        final threeDaysAgo = now.subtract(const Duration(days: 3));
+        final bookWithRecentDate = Book(
+          id: 1,
+          title: 'Recent Book',
+          author: 'Test Author',
+          filePath: '/test/path/book.epub',
+          addedDate: DateTime(2025, 1, 1),
+          lastOpened: threeDaysAgo,
+        );
+
+        // Act
+        await tester.pumpWidget(createWidgetUnderTest(book: bookWithRecentDate));
+
+        // Assert
+        expect(find.textContaining('3 days ago'), findsOneWidget);
+      });
+
+      testWidgets('should display "Today" for today\'s date', (tester) async {
+        // Arrange
+        final now = DateTime.now();
+        final bookWithToday = Book(
+          id: 1,
+          title: 'Test Book A',
+          author: 'Test Author',
+          filePath: '/test/path/book.epub',
+          addedDate: DateTime(2025, 1, 1),
+          lastOpened: now,
+        );
+
+        // Act
+        await tester.pumpWidget(createWidgetUnderTest(book: bookWithToday));
+
+        // Assert
+        expect(find.textContaining('Today'), findsOneWidget);
+      });
+
+      testWidgets('should display "Yesterday" for yesterday\'s date', (tester) async {
+        // Arrange
+        final yesterday = DateTime.now().subtract(const Duration(days: 1));
+        final bookWithYesterday = Book(
+          id: 1,
+          title: 'Test Book B',
+          author: 'Test Author',
+          filePath: '/test/path/book.epub',
+          addedDate: DateTime(2025, 1, 1),
+          lastOpened: yesterday,
+        );
+
+        // Act
+        await tester.pumpWidget(createWidgetUnderTest(book: bookWithYesterday));
+
+        // Assert
+        expect(find.textContaining('Yesterday'), findsOneWidget);
       });
     });
   });

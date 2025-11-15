@@ -1,5 +1,7 @@
+import 'dart:io';
 import 'package:epub_reader/features/library/domain/entities/book.dart';
 import 'package:epub_reader/features/library/presentation/widgets/book_grid_item.dart';
+import 'package:epub_reader/features/reader/presentation/screens/reader_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -161,6 +163,27 @@ void main() {
         // Assert
         expect(find.byIcon(Icons.menu_book), findsOneWidget);
       });
+
+      testWidgets('should display cover image when file exists', (tester) async {
+        // Arrange - Create a temporary file to act as cover
+        final tempDir = Directory.systemTemp.createTempSync('cover_test_');
+        final tempFile = File('${tempDir.path}/cover.jpg');
+        tempFile.writeAsBytesSync([0, 0, 0, 0]); // Write dummy bytes
+
+        final bookWithCover = testBook.copyWith(coverPath: tempFile.path);
+
+        try {
+          // Act
+          await tester.pumpWidget(createWidgetUnderTest(book: bookWithCover));
+
+          // Assert - Should use Image.file instead of Icon
+          expect(find.byType(Image), findsOneWidget);
+          expect(find.byIcon(Icons.menu_book), findsNothing);
+        } finally {
+          // Clean up
+          tempDir.deleteSync(recursive: true);
+        }
+      });
     });
 
     group('Navigation', () {
@@ -179,6 +202,37 @@ void main() {
 
         // Assert - Should trigger selection, not navigation
         expect(selectionChanged, true);
+      });
+
+      testWidgets('should navigate to ReaderScreen when tapped in normal mode', (tester) async {
+        // Arrange
+        final mockObserver = NavigatorObserver();
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: GridView(
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                ),
+                children: [
+                  BookGridItem(
+                    book: testBook,
+                    isSelectionMode: false,
+                  ),
+                ],
+              ),
+            ),
+            navigatorObservers: [mockObserver],
+          ),
+        );
+
+        // Act
+        await tester.tap(find.byType(InkWell));
+        await tester.pump(); // Start navigation animation
+        await tester.pump(const Duration(seconds: 1)); // Complete animation
+
+        // Assert - Check that a route was pushed
+        expect(find.byType(ReaderScreen), findsOneWidget);
       });
     });
 

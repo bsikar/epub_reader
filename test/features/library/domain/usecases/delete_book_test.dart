@@ -93,5 +93,150 @@ void main() {
         (_) => fail('Should return failure'),
       );
     });
+
+    test('should delete EPUB file when it exists', () async {
+      // Arrange - Create a temporary EPUB file
+      final tempDir = Directory.systemTemp.createTempSync('delete_test_');
+      final epubFile = File('${tempDir.path}/test.epub');
+      await epubFile.writeAsBytes([0, 0, 0, 0]);
+
+      final bookWithRealFile = Book(
+        id: 1,
+        title: 'Test Book',
+        author: 'Test Author',
+        filePath: epubFile.path,
+        addedDate: DateTime(2025, 1, 1),
+      );
+
+      when(() => mockRepository.deleteBook(any()))
+          .thenAnswer((_) async => const Right(null));
+
+      // Act
+      final result = await deleteBook(bookWithRealFile);
+
+      // Assert
+      expect(result.isRight(), true);
+      expect(await epubFile.exists(), false); // File should be deleted
+
+      // Clean up
+      await tempDir.delete(recursive: true);
+    });
+
+    test('should delete cover file when it exists', () async {
+      // Arrange - Create temporary EPUB and cover files
+      final tempDir = Directory.systemTemp.createTempSync('delete_test_');
+      final epubFile = File('${tempDir.path}/test.epub');
+      final coverFile = File('${tempDir.path}/cover.jpg');
+      await epubFile.writeAsBytes([0, 0, 0, 0]);
+      await coverFile.writeAsBytes([0, 0, 0, 0]);
+
+      final bookWithCover = Book(
+        id: 1,
+        title: 'Test Book',
+        author: 'Test Author',
+        filePath: epubFile.path,
+        coverPath: coverFile.path,
+        addedDate: DateTime(2025, 1, 1),
+      );
+
+      when(() => mockRepository.deleteBook(any()))
+          .thenAnswer((_) async => const Right(null));
+
+      // Act
+      final result = await deleteBook(bookWithCover);
+
+      // Assert
+      expect(result.isRight(), true);
+      expect(await epubFile.exists(), false); // EPUB should be deleted
+      expect(await coverFile.exists(), false); // Cover should be deleted
+
+      // Clean up
+      await tempDir.delete(recursive: true);
+    });
+
+    test('should handle book with no cover path', () async {
+      // Arrange - Create temporary EPUB file only
+      final tempDir = Directory.systemTemp.createTempSync('delete_test_');
+      final epubFile = File('${tempDir.path}/test.epub');
+      await epubFile.writeAsBytes([0, 0, 0, 0]);
+
+      final bookNoCover = Book(
+        id: 1,
+        title: 'Test Book',
+        author: 'Test Author',
+        filePath: epubFile.path,
+        coverPath: null, // No cover path
+        addedDate: DateTime(2025, 1, 1),
+      );
+
+      when(() => mockRepository.deleteBook(any()))
+          .thenAnswer((_) async => const Right(null));
+
+      // Act
+      final result = await deleteBook(bookNoCover);
+
+      // Assert
+      expect(result.isRight(), true);
+      expect(await epubFile.exists(), false); // EPUB should be deleted
+
+      // Clean up
+      await tempDir.delete(recursive: true);
+    });
+
+    test('should handle file deletion errors gracefully', () async {
+      // Arrange - Use a path that will cause an error when trying to delete
+      final bookWithBadPath = Book(
+        id: 1,
+        title: 'Test Book',
+        author: 'Test Author',
+        filePath: '/invalid/path/that/does/not/exist/book.epub',
+        coverPath: '/invalid/path/that/does/not/exist/cover.jpg',
+        addedDate: DateTime(2025, 1, 1),
+      );
+
+      when(() => mockRepository.deleteBook(any()))
+          .thenAnswer((_) async => const Right(null));
+
+      // Act
+      final result = await deleteBook(bookWithBadPath);
+
+      // Assert - Should succeed even if file deletion fails
+      expect(result.isRight(), true);
+      verify(() => mockRepository.deleteBook(1)).called(1);
+    });
+
+    test('should handle exceptions during file deletion', () async {
+      // Arrange - Create a temp file and open it for reading to lock it
+      final tempDir = Directory.systemTemp.createTempSync('delete_test_');
+      final epubFile = File('${tempDir.path}/locked.epub');
+      await epubFile.writeAsBytes([0, 0, 0, 0]);
+
+      // Open the file to lock it (keep a handle open)
+      final fileHandle = await epubFile.open(mode: FileMode.read);
+
+      final bookWithLockedFile = Book(
+        id: 1,
+        title: 'Test Book',
+        author: 'Test Author',
+        filePath: epubFile.path,
+        addedDate: DateTime(2025, 1, 1),
+      );
+
+      when(() => mockRepository.deleteBook(any()))
+          .thenAnswer((_) async => const Right(null));
+
+      try {
+        // Act - Should not throw, just log the error
+        final result = await deleteBook(bookWithLockedFile);
+
+        // Assert - Should succeed even if file deletion throws
+        expect(result.isRight(), true);
+        verify(() => mockRepository.deleteBook(1)).called(1);
+      } finally {
+        // Clean up - close the file handle first
+        await fileHandle.close();
+        await tempDir.delete(recursive: true);
+      }
+    });
   });
 }

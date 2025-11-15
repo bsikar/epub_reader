@@ -4,6 +4,8 @@ import 'package:epub_reader/features/library/domain/usecases/delete_book.dart';
 import 'package:epub_reader/features/library/domain/usecases/get_all_books.dart';
 import 'package:epub_reader/features/library/domain/usecases/get_recent_books.dart';
 import 'package:epub_reader/features/library/presentation/providers/library_provider.dart';
+import 'package:epub_reader/injection.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:mocktail/mocktail.dart';
@@ -264,6 +266,48 @@ void main() {
         // Assert
         expect(libraryNotifier.state.viewMode, LibraryViewMode.grid);
       });
+    });
+  });
+
+  group('libraryProvider', () {
+    late MockGetAllBooks mockGetAllBooks;
+    late MockGetRecentBooks mockGetRecentBooks;
+    late MockDeleteBook mockDeleteBook;
+
+    setUp(() {
+      mockGetAllBooks = MockGetAllBooks();
+      mockGetRecentBooks = MockGetRecentBooks();
+      mockDeleteBook = MockDeleteBook();
+
+      // Set up getIt with mock instances
+      getIt.registerSingleton<GetAllBooks>(mockGetAllBooks);
+      getIt.registerSingleton<GetRecentBooks>(mockGetRecentBooks);
+      getIt.registerSingleton<DeleteBook>(mockDeleteBook);
+
+      // Mock the GetAllBooks call that happens in LibraryNotifier constructor
+      when(() => mockGetAllBooks()).thenAnswer((_) async => const Right([]));
+    });
+
+    tearDown(() {
+      // Reset getIt after each test
+      getIt.reset();
+    });
+
+    test('should create LibraryNotifier with dependencies from getIt', () async {
+      // Arrange
+      final container = ProviderContainer();
+
+      // Act
+      final notifier = container.read(libraryProvider.notifier);
+
+      // Wait for async initialization to complete
+      await Future.delayed(const Duration(milliseconds: 100));
+
+      // Assert
+      expect(notifier, isA<LibraryNotifier>());
+
+      // Clean up
+      container.dispose();
     });
   });
 }
