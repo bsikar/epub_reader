@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:epub_reader/features/library/domain/entities/book.dart';
-import 'package:epub_reader/features/reader/presentation/screens/reader_screen.dart';
+import 'package:epub_reader/features/library/presentation/screens/book_details_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 
@@ -31,7 +31,7 @@ class BookListItem extends StatelessWidget {
           } else {
             Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (context) => ReaderScreen(book: book),
+                builder: (context) => BookDetailsScreen(book: book),
               ),
             );
           }
