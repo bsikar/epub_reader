@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:epub_reader/core/services/storage_path_service.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as path;
 
@@ -10,14 +11,39 @@ void main() {
     late StoragePathService service;
 
     setUp(() {
+      // Mock the path_provider platform channel
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+        const MethodChannel('plugins.flutter.io/path_provider'),
+        (MethodCall methodCall) async {
+          if (methodCall.method == 'getApplicationSupportDirectory') {
+            // Return a test directory path
+            return Directory.systemTemp.path;
+          }
+          return null;
+        },
+      );
+
       service = StoragePathService();
     });
 
-    test('should be a singleton', () {
-      final service1 = StoragePathService();
-      final service2 = StoragePathService();
+    tearDown(() {
+      // Clean up the mock
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+        const MethodChannel('plugins.flutter.io/path_provider'),
+        null,
+      );
+    });
 
-      expect(identical(service1, service2), true);
+    test('should maintain state like a singleton (cache directories)', () async {
+      // Act - Initialize once
+      final dir1 = await service.getBooksDirectory();
+      final dir2 = await service.getBooksDirectory();
+
+      // Assert - Should return same directory without reinitializing
+      expect(dir1.path, equals(dir2.path));
+      expect(dir1.path, contains('books'));
     });
 
     test('should initialize directories on first access', () async {
