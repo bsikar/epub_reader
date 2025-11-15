@@ -31,6 +31,7 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> {
   int _currentChapterIndex = 0;
   bool _showProgressBar = true;
   List<db.Bookmark> _bookmarks = [];
+  bool _isUserDraggingSlider = false;
 
   // Test helpers
   @visibleForTesting
@@ -381,6 +382,12 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> {
                         max: (totalChapters - 1).toDouble(),
                         divisions: totalChapters > 1 ? totalChapters - 1 : null,
                         label: 'Chapter ${_currentChapterIndex + 1}',
+                        onChangeStart: (value) {
+                          // Mark that user is actively dragging
+                          setState(() {
+                            _isUserDraggingSlider = true;
+                          });
+                        },
                         onChanged: (value) {
                           // Update slider position immediately for smooth dragging
                           final newIndex = value.round();
@@ -394,6 +401,9 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> {
                         onChangeEnd: (value) {
                           // Navigate to chapter only when user finishes dragging
                           final newIndex = value.round();
+                          setState(() {
+                            _isUserDraggingSlider = false;
+                          });
                           if (newIndex < totalChapters) {
                             _navigateToChapter(newIndex);
                           }
@@ -455,6 +465,11 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> {
   }
 
   void _onChapterChanged(dynamic chapterValue) {
+    // Don't update chapter index if user is actively dragging the slider
+    if (_isUserDraggingSlider) {
+      return;
+    }
+
     // Try to extract chapter information from the callback value
     if (_chapters != null && chapterValue != null) {
       try {

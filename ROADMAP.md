@@ -20,7 +20,7 @@ This document outlines the phased implementation plan for building a fully-fledg
 #### 1.2 Folder Structure
 - [x] Create feature-first folder structure
 - [x] Set up core/ directory (config, error, utils, database, widgets)
-- [ ] Set up shared/ directory (services, widgets)
+- [x] Set up shared/ directory (services, widgets)
 - [x] Create feature directories (library, reader, import, dictionary, etc.)
 
 #### 1.3 Dependency Injection
