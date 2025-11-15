@@ -83,6 +83,7 @@ dev_dependencies:
 
   # Testing
   mockito: ^5.4.4
+  mocktail: ^1.0.4
   bloc_test: ^9.1.7
 
 flutter:
