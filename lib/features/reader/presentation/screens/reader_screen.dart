@@ -472,12 +472,17 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> {
     if (_chapters == null ||
         chapterIndex < 0 ||
         chapterIndex >= _chapters!.length) {
+      debugPrint('Navigation aborted: invalid chapter index $chapterIndex');
       return;
     }
 
     final chapter = _chapters![chapterIndex];
+    debugPrint('Navigating to chapter $chapterIndex: "${chapter.Title}" (Anchor: ${chapter.Anchor})');
     if (chapter.Anchor != null) {
       _epubController?.gotoEpubCfi(chapter.Anchor!);
+      debugPrint('Called gotoEpubCfi with: ${chapter.Anchor}');
+    } else {
+      debugPrint('WARNING: Chapter $chapterIndex has no Anchor!');
     }
   }
 
