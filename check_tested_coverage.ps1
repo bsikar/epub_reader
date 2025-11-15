@@ -9,7 +9,9 @@ $files = @(
     'get_all_books.dart',
     'get_recent_books.dart',
     'update_reading_progress.dart',
-    'library_provider.dart'
+    'library_provider.dart',
+    'book_details_screen.dart',
+    'library_search_delegate.dart'
 )
 
 $totalFound = 0
