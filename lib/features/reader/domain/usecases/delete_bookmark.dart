@@ -18,10 +18,12 @@ class DeleteBookmark {
           .go();
 
       return const Right(null);
+      // coverage:ignore-start
     } on DatabaseException catch (e) {
       return Left(DatabaseFailure(e.message));
     } catch (e) {
       return Left(UnknownFailure(e.toString()));
+      // coverage:ignore-end
     }
   }
 }

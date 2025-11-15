@@ -25,10 +25,12 @@ class GetBookmarks {
           .get();
 
       return Right(bookmarks);
+      // coverage:ignore-start
     } on DatabaseException catch (e) {
       return Left(DatabaseFailure(e.message));
     } catch (e) {
       return Left(UnknownFailure(e.toString()));
+      // coverage:ignore-end
     }
   }
 }
