@@ -407,6 +407,19 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> {
                           if (newIndex < totalChapters) {
                             _targetChapterIndex = newIndex;
                             _navigateToChapter(newIndex);
+
+                            // Safety timeout: clear flags after 2 seconds if navigation doesn't complete
+                            Future.delayed(const Duration(seconds: 2), () {
+                              if (mounted && _targetChapterIndex == newIndex) {
+                                debugPrint('Navigation timeout - clearing flags (target was $newIndex)');
+                                setState(() {
+                                  _isUserDraggingSlider = false;
+                                  _targetChapterIndex = null;
+                                  // Force update to target chapter even if callback didn't fire
+                                  _currentChapterIndex = newIndex;
+                                });
+                              }
+                            });
                           } else {
                             _isUserDraggingSlider = false;
                             _targetChapterIndex = null;
@@ -470,7 +483,7 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> {
 
   void _onChapterChanged(dynamic chapterValue) {
     // Don't update chapter index if user is actively dragging the slider
-    if (_isUserDraggingSlider) {
+    if (_isUserDraggingSlider && _targetChapterIndex == null) {
       debugPrint('Callback blocked - user is dragging slider');
       return;
     }
