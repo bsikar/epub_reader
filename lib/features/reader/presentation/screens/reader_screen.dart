@@ -24,6 +24,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   List<EpubChapter>? _chapters;
   Timer? _progressSaveTimer;
   String? _currentCfi;
+  int _currentChapterIndex = 0;
+  bool _showProgressBar = true;
 
   @override
   void initState() {
@@ -140,6 +142,21 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                   onPressed: _showTableOfContents,
                   tooltip: 'Table of contents',
                 ),
+                IconButton(
+                  icon: Icon(
+                    _showProgressBar
+                        ? Icons.linear_scale
+                        : Icons.linear_scale_outlined,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _showProgressBar = !_showProgressBar;
+                    });
+                  },
+                  tooltip: _showProgressBar
+                      ? 'Hide progress bar'
+                      : 'Show progress bar',
+                ),
               ]
             : [],
       ),
@@ -202,17 +219,166 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       );
     }
 
-    return EpubView(
-      controller: _epubController!,
-      onChapterChanged: _onChapterChanged,
-      onDocumentLoaded: _onDocumentLoaded,
-      onDocumentError: _onDocumentError,
+    return Stack(
+      children: [
+        EpubView(
+          controller: _epubController!,
+          onChapterChanged: _onChapterChanged,
+          onDocumentLoaded: _onDocumentLoaded,
+          onDocumentError: _onDocumentError,
+        ),
+        if (_showProgressBar && _chapters != null && _chapters!.isNotEmpty)
+          _buildProgressBar(),
+      ],
     );
   }
 
+  Widget _buildProgressBar() {
+    final totalChapters = _chapters?.length ?? 0;
+    if (totalChapters == 0) return const SizedBox.shrink();
+
+    return Positioned(
+      left: 0,
+      right: 0,
+      bottom: 0,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface.withOpacity(0.95),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 8,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Chapter ${_currentChapterIndex + 1} of $totalChapters',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          if (_chapters != null &&
+                              _currentChapterIndex < _chapters!.length)
+                            Text(
+                              _chapters![_currentChapterIndex].Title?.trim() ?? '',
+                              style: Theme.of(context).textTheme.bodySmall,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(
+                        _showProgressBar ? Icons.expand_more : Icons.expand_less,
+                        size: 20,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _showProgressBar = !_showProgressBar;
+                        });
+                      },
+                      tooltip: _showProgressBar ? 'Hide progress' : 'Show progress',
+                    ),
+                  ],
+                ),
+              ),
+              SliderTheme(
+                data: SliderTheme.of(context).copyWith(
+                  trackHeight: 3,
+                  thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+                  overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
+                ),
+                child: Slider(
+                  value: _currentChapterIndex.toDouble(),
+                  min: 0,
+                  max: (totalChapters - 1).toDouble(),
+                  divisions: totalChapters > 1 ? totalChapters - 1 : null,
+                  label: 'Chapter ${_currentChapterIndex + 1}',
+                  onChanged: (value) {
+                    final newIndex = value.round();
+                    if (newIndex != _currentChapterIndex &&
+                        newIndex < totalChapters) {
+                      setState(() {
+                        _currentChapterIndex = newIndex;
+                      });
+                      _navigateToChapter(newIndex);
+                    }
+                  },
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(left: 16, right: 16, bottom: 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '${((_currentChapterIndex + 1) / totalChapters * 100).toStringAsFixed(0)}%',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    Text(
+                      'Chapter ${_currentChapterIndex + 1}/$totalChapters',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _navigateToChapter(int chapterIndex) {
+    if (_chapters == null ||
+        chapterIndex < 0 ||
+        chapterIndex >= _chapters!.length) {
+      return;
+    }
+
+    final chapter = _chapters![chapterIndex];
+    if (chapter.Anchor != null) {
+      _epubController?.gotoEpubCfi(chapter.Anchor!);
+    }
+  }
+
   void _onChapterChanged(dynamic chapterValue) {
-    // TODO: Save reading progress to database
-    debugPrint('Chapter changed');
+    // Try to extract chapter information from the callback value
+    if (_chapters != null && chapterValue != null) {
+      try {
+        // Attempt to access chapter property dynamically
+        final chapter = chapterValue.chapter;
+        if (chapter != null) {
+          final chapterIndex = _chapters!.indexWhere(
+            (ch) => ch.Anchor == chapter.Anchor,
+          );
+          if (chapterIndex != -1 && chapterIndex != _currentChapterIndex) {
+            setState(() {
+              _currentChapterIndex = chapterIndex;
+            });
+          }
+        }
+      } catch (e) {
+        // Fallback: Just log the chapter change
+        debugPrint('Chapter changed (unable to determine index): $e');
+      }
+    }
+    debugPrint('Chapter changed to index: $_currentChapterIndex');
   }
 
   void _onDocumentLoaded(EpubBook document) {
