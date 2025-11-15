@@ -1,0 +1,93 @@
+name: epub_reader
+description: "A fully-fledged offline EPUB reader with perfect dictionary support."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.10.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # UI
+  cupertino_icons: ^1.0.8
+
+  # EPUB Handling
+  epub_view: ^3.1.0
+  archive: ^3.6.1
+  xml: ^6.5.0
+
+  # State Management
+  flutter_riverpod: ^2.5.1
+  riverpod_annotation: ^2.3.5
+  hydrated_bloc: ^9.1.5
+
+  # Database
+  drift: ^2.18.0
+  drift_flutter: ^0.1.0
+  sqlite3_flutter_libs: ^0.5.24
+
+  # Dependency Injection
+  get_it: ^7.7.0
+  injectable: ^2.4.2
+
+  # File Management
+  file_picker: ^8.1.2
+  path_provider: ^2.1.4
+  path: ^1.9.0
+
+  # Error Handling & Functional Programming
+  fpdart: ^1.1.0
+  equatable: ^2.0.5
+
+  # UI Components
+  flutter_slidable: ^3.1.1
+  cached_network_image: ^3.4.1
+  shimmer: ^3.0.0
+  flutter_staggered_grid_view: ^0.7.0
+
+  # Text-to-Speech (temporarily removed due to Windows build issues - will add back later)
+  # flutter_tts: ^4.0.2
+
+  # Utilities
+  intl: ^0.19.0
+  uuid: ^4.5.0
+
+  # Image Handling
+  image: ^3.3.0
+
+  # Local Storage
+  shared_preferences: ^2.3.2
+
+  # PDF Export (for highlights)
+  pdf: ^3.8.4
+
+  # JSON
+  json_annotation: ^4.9.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  # Linting
+  flutter_lints: ^6.0.0
+
+  # Code Generation
+  build_runner: ^2.4.12
+  riverpod_generator: ^2.4.3
+  injectable_generator: ^2.6.2
+  drift_dev: ^2.18.0
+  json_serializable: ^6.8.0
+
+  # Testing
+  mockito: ^5.4.4
+  bloc_test: ^9.1.7
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/dictionary/
+    - assets/images/
