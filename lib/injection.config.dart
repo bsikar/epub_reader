@@ -24,8 +24,12 @@ import 'features/library/domain/usecases/delete_book.dart' as _i120;
 import 'features/library/domain/usecases/get_all_books.dart' as _i387;
 import 'features/library/domain/usecases/get_recent_books.dart' as _i578;
 import 'features/reader/domain/usecases/add_bookmark.dart' as _i915;
+import 'features/reader/domain/usecases/add_highlight.dart' as _i354;
 import 'features/reader/domain/usecases/delete_bookmark.dart' as _i916;
+import 'features/reader/domain/usecases/delete_highlight.dart' as _i1015;
 import 'features/reader/domain/usecases/get_bookmarks.dart' as _i574;
+import 'features/reader/domain/usecases/get_highlights.dart' as _i701;
+import 'features/reader/domain/usecases/update_highlight.dart' as _i584;
 import 'features/reader/domain/usecases/update_reading_progress.dart' as _i530;
 
 extension GetItInjectableX on _i174.GetIt {
@@ -47,6 +51,18 @@ extension GetItInjectableX on _i174.GetIt {
     );
     gh.factory<_i574.GetBookmarks>(
       () => _i574.GetBookmarks(gh<_i111.AppDatabase>()),
+    );
+    gh.factory<_i354.AddHighlight>(
+      () => _i354.AddHighlight(gh<_i111.AppDatabase>()),
+    );
+    gh.factory<_i1015.DeleteHighlight>(
+      () => _i1015.DeleteHighlight(gh<_i111.AppDatabase>()),
+    );
+    gh.factory<_i701.GetHighlights>(
+      () => _i701.GetHighlights(gh<_i111.AppDatabase>()),
+    );
+    gh.factory<_i584.UpdateHighlight>(
+      () => _i584.UpdateHighlight(gh<_i111.AppDatabase>()),
     );
     gh.factory<_i921.LibraryRepository>(
       () => _i1002.LibraryRepositoryImpl(gh<_i856.LibraryLocalDataSource>()),

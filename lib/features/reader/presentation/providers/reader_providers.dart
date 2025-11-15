@@ -1,6 +1,10 @@
 import 'package:epub_reader/features/reader/domain/usecases/add_bookmark.dart';
+import 'package:epub_reader/features/reader/domain/usecases/add_highlight.dart';
 import 'package:epub_reader/features/reader/domain/usecases/delete_bookmark.dart';
+import 'package:epub_reader/features/reader/domain/usecases/delete_highlight.dart';
 import 'package:epub_reader/features/reader/domain/usecases/get_bookmarks.dart';
+import 'package:epub_reader/features/reader/domain/usecases/get_highlights.dart';
+import 'package:epub_reader/features/reader/domain/usecases/update_highlight.dart';
 import 'package:epub_reader/features/reader/domain/usecases/update_reading_progress.dart';
 import 'package:epub_reader/injection.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -19,4 +23,20 @@ final getBookmarksProvider = Provider<GetBookmarks>((ref) {
 
 final deleteBookmarkProvider = Provider<DeleteBookmark>((ref) {
   return getIt<DeleteBookmark>();
+});
+
+final addHighlightProvider = Provider<AddHighlight>((ref) {
+  return getIt<AddHighlight>();
+});
+
+final getHighlightsProvider = Provider<GetHighlights>((ref) {
+  return getIt<GetHighlights>();
+});
+
+final updateHighlightProvider = Provider<UpdateHighlight>((ref) {
+  return getIt<UpdateHighlight>();
+});
+
+final deleteHighlightProvider = Provider<DeleteHighlight>((ref) {
+  return getIt<DeleteHighlight>();
 });
