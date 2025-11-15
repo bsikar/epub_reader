@@ -5,12 +5,10 @@ import 'package:epub_reader/features/library/domain/repositories/library_reposit
 import 'package:epub_reader/features/library/domain/usecases/delete_book.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fpdart/fpdart.dart';
-import 'package:mockito/annotations.dart';
-import 'package:mockito/mockito.dart';
+import 'package:mocktail/mocktail.dart';
 
-import 'delete_book_test.mocks.dart';
+class MockLibraryRepository extends Mock implements LibraryRepository {}
 
-@GenerateMocks([LibraryRepository])
 void main() {
   late DeleteBook deleteBook;
   late MockLibraryRepository mockRepository;
@@ -32,7 +30,7 @@ void main() {
 
     test('should delete book from repository when book has valid ID', () async {
       // Arrange
-      when(mockRepository.deleteBook(any))
+      when(() => mockRepository.deleteBook(any()))
           .thenAnswer((_) async => const Right(null));
 
       // Act
@@ -40,7 +38,7 @@ void main() {
 
       // Assert
       expect(result.isRight(), true);
-      verify(mockRepository.deleteBook(1)).called(1);
+      verify(() => mockRepository.deleteBook(1)).called(1);
     });
 
     test('should return failure when book ID is null', () async {
@@ -65,7 +63,7 @@ void main() {
 
     test('should return failure when repository fails to delete', () async {
       // Arrange
-      when(mockRepository.deleteBook(any))
+      when(() => mockRepository.deleteBook(any()))
           .thenAnswer((_) async => const Left(DatabaseFailure('Failed to delete')));
 
       // Act
@@ -77,12 +75,12 @@ void main() {
         (failure) => expect(failure.message, 'Failed to delete'),
         (_) => fail('Should return failure'),
       );
-      verify(mockRepository.deleteBook(1)).called(1);
+      verify(() => mockRepository.deleteBook(1)).called(1);
     });
 
     test('should handle exceptions gracefully', () async {
       // Arrange
-      when(mockRepository.deleteBook(any))
+      when(() => mockRepository.deleteBook(any()))
           .thenThrow(Exception('Unexpected error'));
 
       // Act

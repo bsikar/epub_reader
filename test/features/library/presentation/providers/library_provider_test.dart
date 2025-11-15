@@ -6,17 +6,23 @@ import 'package:epub_reader/features/library/domain/usecases/get_recent_books.da
 import 'package:epub_reader/features/library/presentation/providers/library_provider.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fpdart/fpdart.dart';
-import 'package:mockito/annotations.dart';
-import 'package:mockito/mockito.dart';
+import 'package:mocktail/mocktail.dart';
 
-import 'library_provider_test.mocks.dart';
+class MockGetAllBooks extends Mock implements GetAllBooks {}
+class MockGetRecentBooks extends Mock implements GetRecentBooks {}
+class MockDeleteBook extends Mock implements DeleteBook {}
 
-@GenerateMocks([GetAllBooks, GetRecentBooks, DeleteBook])
+class FakeBook extends Fake implements Book {}
+
 void main() {
   late LibraryNotifier libraryNotifier;
   late MockGetAllBooks mockGetAllBooks;
   late MockGetRecentBooks mockGetRecentBooks;
   late MockDeleteBook mockDeleteBook;
+
+  setUpAll(() {
+    registerFallbackValue(FakeBook());
+  });
 
   setUp(() {
     mockGetAllBooks = MockGetAllBooks();
@@ -24,7 +30,7 @@ void main() {
     mockDeleteBook = MockDeleteBook();
 
     // Default mock for loadBooks called in constructor
-    when(mockGetAllBooks()).thenAnswer((_) async => const Right([]));
+    when(() => mockGetAllBooks()).thenAnswer((_) async => const Right([]));
 
     libraryNotifier = LibraryNotifier(
       mockGetAllBooks,
@@ -61,7 +67,7 @@ void main() {
     group('loadBooks', () {
       test('should update state with books when successful', () async {
         // Arrange
-        when(mockGetAllBooks()).thenAnswer((_) async => Right(tBooks));
+        when(() => mockGetAllBooks()).thenAnswer((_) async => Right(tBooks));
 
         // Act
         await libraryNotifier.loadBooks();
@@ -74,7 +80,7 @@ void main() {
 
       test('should update state with error when failed', () async {
         // Arrange
-        when(mockGetAllBooks())
+        when(() => mockGetAllBooks())
             .thenAnswer((_) async => Left(DatabaseFailure('Failed to load')));
 
         // Act
@@ -88,7 +94,7 @@ void main() {
 
       test('should set isLoading to true while loading', () async {
         // Arrange
-        when(mockGetAllBooks()).thenAnswer(
+        when(() => mockGetAllBooks()).thenAnswer(
           (_) => Future.delayed(const Duration(milliseconds: 100), () => const Right([])),
         );
 
@@ -106,10 +112,10 @@ void main() {
     group('deleteBook', () {
       test('should remove book from state when deletion succeeds', () async {
         // Arrange
-        when(mockGetAllBooks()).thenAnswer((_) async => Right(tBooks));
+        when(() => mockGetAllBooks()).thenAnswer((_) async => Right(tBooks));
         await libraryNotifier.loadBooks();
 
-        when(mockDeleteBook(any)).thenAnswer((_) async => const Right(null));
+        when(() => mockDeleteBook(any())).thenAnswer((_) async => const Right(null));
 
         // Act
         await libraryNotifier.deleteBook(tBooks[0]);
@@ -122,10 +128,10 @@ void main() {
 
       test('should update error when deletion fails', () async {
         // Arrange
-        when(mockGetAllBooks()).thenAnswer((_) async => Right(tBooks));
+        when(() => mockGetAllBooks()).thenAnswer((_) async => Right(tBooks));
         await libraryNotifier.loadBooks();
 
-        when(mockDeleteBook(any))
+        when(() => mockDeleteBook(any()))
             .thenAnswer((_) async => Left(DatabaseFailure('Delete failed')));
 
         // Act
@@ -140,14 +146,14 @@ void main() {
     group('deleteSelectedBooks', () {
       test('should delete all selected books and exit selection mode', () async {
         // Arrange
-        when(mockGetAllBooks()).thenAnswer((_) async => Right(tBooks));
+        when(() => mockGetAllBooks()).thenAnswer((_) async => Right(tBooks));
         await libraryNotifier.loadBooks();
 
         libraryNotifier.toggleSelectionMode();
         libraryNotifier.toggleBookSelection(1);
         libraryNotifier.toggleBookSelection(2);
 
-        when(mockDeleteBook(any)).thenAnswer((_) async => const Right(null));
+        when(() => mockDeleteBook(any())).thenAnswer((_) async => const Right(null));
 
         // Act
         await libraryNotifier.deleteSelectedBooks();
@@ -215,7 +221,7 @@ void main() {
     group('selectAll', () {
       test('should select all books', () async {
         // Arrange
-        when(mockGetAllBooks()).thenAnswer((_) async => Right(tBooks));
+        when(() => mockGetAllBooks()).thenAnswer((_) async => Right(tBooks));
         await libraryNotifier.loadBooks();
 
         // Act
@@ -229,7 +235,7 @@ void main() {
     group('deselectAll', () {
       test('should clear all selections', () async {
         // Arrange
-        when(mockGetAllBooks()).thenAnswer((_) async => Right(tBooks));
+        when(() => mockGetAllBooks()).thenAnswer((_) async => Right(tBooks));
         await libraryNotifier.loadBooks();
         libraryNotifier.selectAll();
 
