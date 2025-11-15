@@ -6,9 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class LibrarySearchDelegate extends SearchDelegate<Book?> {
-  final WidgetRef ref;
-
-  LibrarySearchDelegate(this.ref);
+  LibrarySearchDelegate();
 
   @override
   String get searchFieldLabel => 'Search books...';

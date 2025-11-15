@@ -141,7 +141,7 @@ class LibraryScreen extends ConsumerWidget {
                   onPressed: () {
                     showSearch(
                       context: context,
-                      delegate: LibrarySearchDelegate(ref),
+                      delegate: LibrarySearchDelegate(),
                     );
                   },
                   tooltip: 'Search',
