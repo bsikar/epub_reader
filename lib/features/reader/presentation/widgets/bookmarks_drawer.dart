@@ -1,3 +1,4 @@
+import 'package:epub_reader/app.dart';
 import 'package:epub_reader/core/database/app_database.dart' as db;
 import 'package:epub_reader/features/reader/domain/usecases/delete_bookmark.dart';
 import 'package:epub_reader/features/reader/domain/usecases/get_bookmarks.dart';
@@ -8,11 +9,13 @@ import 'package:intl/intl.dart';
 
 class BookmarksDrawer extends ConsumerWidget {
   final int bookId;
+  final bool showProgressBar;
   final Function(String cfi) onBookmarkTap;
 
   const BookmarksDrawer({
     super.key,
     required this.bookId,
+    required this.showProgressBar,
     required this.onBookmarkTap,
   });
 
@@ -51,6 +54,7 @@ class BookmarksDrawer extends ConsumerWidget {
                     final bookmark = bookmarks[index];
                     return _buildBookmarkTile(
                       context,
+                      ref,
                       bookmark,
                       deleteBookmark,
                     );
@@ -142,6 +146,7 @@ class BookmarksDrawer extends ConsumerWidget {
 
   Widget _buildBookmarkTile(
     BuildContext context,
+    WidgetRef ref,
     db.Bookmark bookmark,
     DeleteBookmark deleteBookmarkUseCase,
   ) {
@@ -159,6 +164,11 @@ class BookmarksDrawer extends ConsumerWidget {
         onTap: () {
           onBookmarkTap(bookmark.cfiLocation);
           Navigator.pop(context);
+          // Reset screen name when drawer is closed
+          if (context.mounted) {
+            final screenName = showProgressBar ? 'reader-progress' : 'reader';
+            ref.read(currentScreenProvider.notifier).state = screenName;
+          }
         },
         child: Padding(
           padding: const EdgeInsets.all(12),
@@ -246,7 +256,7 @@ class BookmarksDrawer extends ConsumerWidget {
                   color: colorScheme.error,
                 ),
                 onPressed: () =>
-                    _confirmDelete(context, bookmark, deleteBookmarkUseCase),
+                    _confirmDelete(context, ref, bookmark, deleteBookmarkUseCase),
                 tooltip: 'Delete bookmark',
                 visualDensity: VisualDensity.compact,
               ),
@@ -285,11 +295,15 @@ class BookmarksDrawer extends ConsumerWidget {
 
   Future<void> _confirmDelete(
     BuildContext context,
+    WidgetRef ref,
     db.Bookmark bookmark,
     DeleteBookmark deleteBookmarkUseCase,
   ) async {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+
+    // Update screen name for delete bookmark confirmation
+    ref.read(currentScreenProvider.notifier).state = 'reader-bookmarks-delete-confirmation';
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -322,6 +336,11 @@ class BookmarksDrawer extends ConsumerWidget {
         ],
       ),
     );
+
+    // Reset screen name back to bookmarks drawer
+    if (context.mounted) {
+      ref.read(currentScreenProvider.notifier).state = 'reader-bookmarks-drawer';
+    }
 
     if (confirmed == true && context.mounted) {
       final result = await deleteBookmarkUseCase(bookmark.id);

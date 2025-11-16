@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:epub_reader/app.dart';
 import 'package:epub_reader/features/library/domain/entities/book.dart';
 import 'package:epub_reader/features/library/presentation/providers/library_provider.dart';
 import 'package:epub_reader/features/reader/presentation/screens/reader_screen.dart';
@@ -16,6 +17,11 @@ class BookDetailsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Update the current screen provider
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(currentScreenProvider.notifier).state = 'book-details';
+    });
+
     final theme = Theme.of(context);
     final libraryNotifier = ref.read(libraryProvider.notifier);
 
@@ -26,7 +32,7 @@ class BookDetailsScreen extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.delete_outline),
             tooltip: 'Delete Book',
-            onPressed: () => _showDeleteConfirmation(context, libraryNotifier),
+            onPressed: () => _showDeleteConfirmation(context, ref, libraryNotifier),
           ),
         ],
       ),
@@ -314,8 +320,12 @@ class BookDetailsScreen extends ConsumerWidget {
 
   Future<void> _showDeleteConfirmation(
     BuildContext context,
+    WidgetRef ref,
     LibraryNotifier libraryNotifier,
   ) async {
+    // Update screen name for delete confirmation dialog
+    ref.read(currentScreenProvider.notifier).state = 'book-details-delete-confirmation';
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -339,6 +349,11 @@ class BookDetailsScreen extends ConsumerWidget {
         ],
       ),
     );
+
+    // Reset screen name back to book details
+    if (context.mounted) {
+      ref.read(currentScreenProvider.notifier).state = 'book-details';
+    }
 
     if (confirmed == true && context.mounted) {
       await libraryNotifier.deleteBook(book);

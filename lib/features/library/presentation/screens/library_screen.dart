@@ -1,3 +1,4 @@
+import 'package:epub_reader/app.dart';
 import 'package:epub_reader/core/widgets/empty_state.dart';
 import 'package:epub_reader/core/widgets/error_view.dart';
 import 'package:epub_reader/core/widgets/loading_indicator.dart';
@@ -39,6 +40,10 @@ class LibraryScreen extends ConsumerWidget {
     print('LibraryScreen: Confirm delete called for $count books');
     print('LibraryScreen: Selected IDs: ${state.selectedBookIds.join(", ")}');
 
+    // Update screen name for delete confirmation dialog
+    final baseScreenName = state.isSelectionMode ? 'library-selection' : 'library';
+    ref.read(currentScreenProvider.notifier).state = '$baseScreenName-delete-confirmation';
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -71,6 +76,12 @@ class LibraryScreen extends ConsumerWidget {
 
     print('LibraryScreen: Dialog result: $confirmed');
 
+    // Reset screen name back to base screen
+    if (context.mounted) {
+      final currentState = ref.read(libraryProvider);
+      ref.read(currentScreenProvider.notifier).state = currentState.isSelectionMode ? 'library-selection' : 'library';
+    }
+
     if (confirmed == true && context.mounted) {
       print('LibraryScreen: Calling deleteSelectedBooks');
       await ref.read(libraryProvider.notifier).deleteSelectedBooks();
@@ -87,6 +98,12 @@ class LibraryScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(libraryProvider);
     final importState = ref.watch(importProvider);
+
+    // Update the current screen provider based on selection mode
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final screenName = state.isSelectionMode ? 'library-selection' : 'library';
+      ref.read(currentScreenProvider.notifier).state = screenName;
+    });
 
     if (importState.isImporting) {
       return const Scaffold(
@@ -139,10 +156,17 @@ class LibraryScreen extends ConsumerWidget {
                 IconButton(
                   icon: const Icon(Icons.search),
                   onPressed: () {
+                    ref.read(currentScreenProvider.notifier).state = 'library-search';
                     showSearch(
                       context: context,
                       delegate: LibrarySearchDelegate(),
-                    );
+                    ).then((_) {
+                      // Reset screen name when search is closed
+                      if (context.mounted) {
+                        final currentState = ref.read(libraryProvider);
+                        ref.read(currentScreenProvider.notifier).state = currentState.isSelectionMode ? 'library-selection' : 'library';
+                      }
+                    });
                   },
                   tooltip: 'Search',
                 ),

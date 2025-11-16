@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:async';
+import 'package:epub_reader/app.dart';
 import 'package:epub_reader/core/database/app_database.dart' as db;
 import 'package:epub_reader/features/library/domain/entities/book.dart';
 import 'package:epub_reader/features/reader/presentation/providers/reader_providers.dart';
@@ -26,6 +27,7 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> {
   double _fontSize = 16.0;
   String _selectedTheme = 'light';
   List<EpubChapter>? _chapters;
+  List<EpubChapter>? _filteredChapters; // Chapters without footer
   Timer? _progressSaveTimer;
   String? _currentCfi;
   int _currentChapterIndex = 0;
@@ -33,17 +35,26 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> {
   List<db.Bookmark> _bookmarks = [];
   bool _isUserDraggingSlider = false;
   int? _targetChapterIndex;
+  Timer? _navigationTimer;
+  String _currentOverlay = '';
 
   // Test helpers
   @visibleForTesting
   void setChaptersForTesting(List<EpubChapter>? chapters) {
     _chapters = chapters;
+    _filteredChapters = chapters?.where((chapter) => !_isFooterChapter(chapter)).toList();
   }
 
   @visibleForTesting
   void setBookmarksForTesting(List<db.Bookmark> bookmarks) {
     _bookmarks = bookmarks;
   }
+
+  @visibleForTesting
+  int get currentChapterIndex => _currentChapterIndex;
+
+  @visibleForTesting
+  int? get filteredChaptersLength => _filteredChapters?.length;
 
   @override
   void initState() {
@@ -99,6 +110,7 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> {
 
       // Load saved reading position if available
       final savedCfi = widget.book.currentCfi;
+      debugPrint('Loading EPUB with saved CFI: $savedCfi');
 
       _epubController = EpubController(
         document: Future.value(epubDoc),
@@ -124,6 +136,7 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> {
   @override
   void dispose() {
     _progressSaveTimer?.cancel();
+    _navigationTimer?.cancel();
     _saveProgress(); // Save one last time before disposing
     _epubController?.dispose();
     super.dispose();
@@ -132,6 +145,12 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Update the current screen provider based on progress bar visibility
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final screenName = _showProgressBar ? 'reader-progress' : 'reader';
+      ref.read(currentScreenProvider.notifier).state = screenName;
+    });
+
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.book.title),
@@ -152,12 +171,18 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> {
                   onPressed: _addBookmark,
                   tooltip: 'Add bookmark',
                 ),
-                IconButton(
-                  icon: const Icon(Icons.bookmarks),
-                  onPressed: () {
-                    Scaffold.of(context).openEndDrawer();
+                Builder(
+                  builder: (BuildContext scaffoldContext) {
+                    return IconButton(
+                      icon: const Icon(Icons.bookmarks),
+                      onPressed: () {
+                        // Update screen name for bookmarks drawer
+                        ref.read(currentScreenProvider.notifier).state = 'reader-bookmarks-drawer';
+                        Scaffold.of(scaffoldContext).openEndDrawer();
+                      },
+                      tooltip: 'View bookmarks',
+                    );
                   },
-                  tooltip: 'View bookmarks',
                 ),
                 IconButton(
                   icon: const Icon(Icons.format_size),
@@ -192,8 +217,17 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> {
       endDrawer: widget.book.id != null
           ? BookmarksDrawer(
               bookId: widget.book.id!,
+              showProgressBar: _showProgressBar,
               onBookmarkTap: (cfi) {
+                // Clear any navigation flags when navigating via bookmark
+                _navigationTimer?.cancel();
+                setState(() {
+                  _isUserDraggingSlider = false;
+                  // Don't set targetChapterIndex for bookmarks as they may not be chapter starts
+                });
+
                 _epubController?.gotoEpubCfi(cfi);
+                debugPrint('Bookmark navigation to CFI: $cfi');
               },
             )
           : null,
@@ -265,14 +299,14 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> {
           onDocumentLoaded: _onDocumentLoaded,
           onDocumentError: _onDocumentError,
         ),
-        if (_showProgressBar && _chapters != null && _chapters!.isNotEmpty)
+        if (_showProgressBar && _filteredChapters != null && _filteredChapters!.isNotEmpty)
           _buildProgressBar(),
       ],
     );
   }
 
   Widget _buildProgressBar() {
-    final totalChapters = _chapters?.length ?? 0;
+    final totalChapters = _filteredChapters?.length ?? 0;
     if (totalChapters == 0) return const SizedBox.shrink();
 
     final theme = Theme.of(context);
@@ -321,12 +355,12 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> {
                               color: colorScheme.onSurface,
                             ),
                           ),
-                          if (_chapters != null &&
-                              _currentChapterIndex < _chapters!.length)
+                          if (_filteredChapters != null &&
+                              _currentChapterIndex < _filteredChapters!.length)
                             Padding(
                               padding: const EdgeInsets.only(top: 2),
                               child: Text(
-                                _chapters![_currentChapterIndex].Title?.trim() ?? '',
+                                _filteredChapters![_currentChapterIndex].Title?.trim() ?? '',
                                 style: theme.textTheme.bodySmall?.copyWith(
                                   color: colorScheme.onSurfaceVariant,
                                 ),
@@ -384,9 +418,14 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> {
                         divisions: totalChapters > 1 ? totalChapters - 1 : null,
                         label: 'Chapter ${_currentChapterIndex + 1}',
                         onChangeStart: (value) {
+                          // Cancel any pending navigation timer
+                          _navigationTimer?.cancel();
+
                           // Mark that user is actively dragging
-                          // Set flag synchronously to prevent race conditions
-                          _isUserDraggingSlider = true;
+                          setState(() {
+                            _isUserDraggingSlider = true;
+                            _targetChapterIndex = null;
+                          });
                           debugPrint('Slider drag started - callbacks blocked');
                         },
                         onChanged: (value) {
@@ -404,25 +443,31 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> {
                           // Navigate to chapter only when user finishes dragging
                           final newIndex = value.round();
                           debugPrint('Slider drag ended at chapter $newIndex - navigating...');
+
                           if (newIndex < totalChapters) {
-                            _targetChapterIndex = newIndex;
+                            setState(() {
+                              _targetChapterIndex = newIndex;
+                              _currentChapterIndex = newIndex;
+                            });
+
                             _navigateToChapter(newIndex);
 
-                            // Safety timeout: clear flags after 2 seconds if navigation doesn't complete
-                            Future.delayed(const Duration(seconds: 2), () {
-                              if (mounted && _targetChapterIndex == newIndex) {
-                                debugPrint('Navigation timeout - clearing flags (target was $newIndex)');
+                            // Improved timeout with proper cleanup
+                            _navigationTimer?.cancel();
+                            _navigationTimer = Timer(const Duration(milliseconds: 1500), () {
+                              if (mounted) {
+                                debugPrint('Navigation complete - clearing flags');
                                 setState(() {
                                   _isUserDraggingSlider = false;
                                   _targetChapterIndex = null;
-                                  // Force update to target chapter even if callback didn't fire
-                                  _currentChapterIndex = newIndex;
                                 });
                               }
                             });
                           } else {
-                            _isUserDraggingSlider = false;
-                            _targetChapterIndex = null;
+                            setState(() {
+                              _isUserDraggingSlider = false;
+                              _targetChapterIndex = null;
+                            });
                           }
                         },
                       ),
@@ -436,7 +481,7 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      '${((_currentChapterIndex + 1) / totalChapters * 100).toStringAsFixed(0)}% complete',
+                      '${(_currentChapterIndex / (totalChapters - 1).clamp(1, double.infinity) * 100).toStringAsFixed(0)}% complete',
                       style: theme.textTheme.labelMedium?.copyWith(
                         color: colorScheme.onSurfaceVariant,
                         fontWeight: FontWeight.w500,
@@ -469,14 +514,14 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> {
 
   // coverage:ignore-start
   void _navigateToChapter(int chapterIndex) {
-    if (_chapters == null ||
+    if (_filteredChapters == null ||
         chapterIndex < 0 ||
-        chapterIndex >= _chapters!.length) {
+        chapterIndex >= _filteredChapters!.length) {
       debugPrint('Navigation aborted: invalid chapter index $chapterIndex');
       return;
     }
 
-    final chapter = _chapters![chapterIndex];
+    final chapter = _filteredChapters![chapterIndex];
     debugPrint('Navigating to chapter $chapterIndex: "${chapter.Title}" (Anchor: ${chapter.Anchor})');
     if (chapter.Anchor != null) {
       _epubController?.gotoEpubCfi(chapter.Anchor!);
@@ -487,62 +532,128 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> {
   }
 
   void _onChapterChanged(dynamic chapterValue) {
-    // Don't update chapter index if user is actively dragging the slider
-    if (_isUserDraggingSlider && _targetChapterIndex == null) {
+    // Block updates while user is dragging the slider
+    if (_isUserDraggingSlider) {
       debugPrint('Callback blocked - user is dragging slider');
       return;
     }
 
     // Try to extract chapter information from the callback value
-    if (_chapters != null && chapterValue != null) {
+    if (_chapters != null && _filteredChapters != null && chapterValue != null) {
       try {
         // Attempt to access chapter property dynamically
         final chapter = chapterValue.chapter;
         if (chapter != null) {
-          final chapterIndex = _chapters!.indexWhere(
-            (ch) => ch.Anchor == chapter.Anchor,
-          );
+          // Ignore footer chapters completely
+          if (_isFooterChapter(chapter)) {
+            debugPrint('Ignoring footer chapter change: ${chapter.Title}');
+            return;
+          }
+
+          debugPrint('Chapter anchor from callback: ${chapter.Anchor}');
+          debugPrint('Chapter title from callback: ${chapter.Title}');
+
+          // Find the chapter in our filtered list
+          int chapterIndex = -1;
+
+          // Try to match by anchor first
+          if (chapter.Anchor != null && chapter.Anchor!.isNotEmpty) {
+            chapterIndex = _filteredChapters!.indexWhere(
+              (ch) => ch.Anchor == chapter.Anchor,
+            );
+          }
+
+          // If anchor matching failed, try to match by title as fallback
+          if (chapterIndex == -1 && chapter.Title != null && chapter.Title!.isNotEmpty) {
+            debugPrint('Anchor matching failed, trying title matching for: ${chapter.Title}');
+            chapterIndex = _filteredChapters!.indexWhere(
+              (ch) => ch.Title?.trim() == chapter.Title?.trim(),
+            );
+          }
 
           if (chapterIndex == -1) {
-            debugPrint('Chapter changed callback: unknown chapter');
+            debugPrint('Chapter not found in filtered list: ${chapter.Title} (Anchor: ${chapter.Anchor})');
             return;
           }
 
-          // If we're waiting for a specific chapter after slider navigation
+          // If we're navigating to a specific chapter (from slider)
           if (_targetChapterIndex != null) {
+            // Clear the navigation state once we reach the target
             if (chapterIndex == _targetChapterIndex) {
-              debugPrint('Chapter changed callback: reached target chapter $chapterIndex - clearing flags');
+              debugPrint('Reached target chapter $chapterIndex');
+              _navigationTimer?.cancel();
               setState(() {
-                _currentChapterIndex = chapterIndex;
-                _isUserDraggingSlider = false;
                 _targetChapterIndex = null;
               });
-            } else {
-              debugPrint('Callback blocked - waiting for target chapter $_targetChapterIndex, got $chapterIndex');
             }
+            // Don't update the chapter index as it's already set by the slider
             return;
           }
 
-          // Normal chapter change (from scrolling, not slider)
+          // Normal chapter change from scrolling
           if (chapterIndex != _currentChapterIndex) {
-            debugPrint('Chapter changed callback: updating index from $_currentChapterIndex to $chapterIndex');
+            debugPrint('Chapter changed from scrolling: $_currentChapterIndex -> $chapterIndex');
+            debugPrint('  New chapter: ${_filteredChapters![chapterIndex].Title}');
             setState(() {
               _currentChapterIndex = chapterIndex;
             });
           }
+        } else {
+          debugPrint('Chapter is null in callback value');
         }
       } catch (e) {
         // Fallback: Just log the chapter change
         debugPrint('Chapter changed (unable to determine index): $e');
       }
+    } else {
+      debugPrint('onChapterChanged: chapters or chapterValue is null');
     }
+  }
+
+  bool _isFooterChapter(EpubChapter? chapter) {
+    if (chapter == null) return false;
+
+    // Check for common footer patterns
+    final anchor = chapter.Anchor?.toLowerCase() ?? '';
+    final title = chapter.Title?.toLowerCase() ?? '';
+
+    return anchor.contains('footer') ||
+           anchor.contains('pg-footer') ||
+           title.contains('project gutenberg') ||
+           title.contains('full project gutenberg license') ||
+           title.contains('end of the project gutenberg') ||
+           title.contains('end of project gutenberg');
   }
 
   void _onDocumentLoaded(EpubBook document) {
     setState(() {
       _chapters = document.Chapters;
+
+      // Filter out footer chapters for navigation
+      _filteredChapters = _chapters?.where((chapter) => !_isFooterChapter(chapter)).toList();
     });
-    debugPrint('Document loaded with ${_chapters?.length ?? 0} chapters');
+
+    debugPrint('Document loaded with ${_chapters?.length ?? 0} total chapters');
+    debugPrint('Filtered to ${_filteredChapters?.length ?? 0} content chapters (excluded footers)');
+
+    // Debug: Log filtered chapters
+    if (_filteredChapters != null) {
+      for (int i = 0; i < _filteredChapters!.length; i++) {
+        debugPrint('Chapter $i: "${_filteredChapters![i].Title}" -> Anchor: ${_filteredChapters![i].Anchor}');
+      }
+    }
+
+    // Log excluded chapters
+    if (_chapters != null && _filteredChapters != null) {
+      final excluded = _chapters!.where((ch) => _isFooterChapter(ch)).toList();
+      if (excluded.isNotEmpty) {
+        debugPrint('Excluded footer chapters:');
+        for (final ch in excluded) {
+          debugPrint('  - "${ch.Title}" (Anchor: ${ch.Anchor})');
+        }
+      }
+    }
+
     _loadBookmarks();
   }
 
@@ -569,14 +680,14 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> {
 
   @visibleForTesting
   Set<int> getBookmarkChapterIndices() {
-    if (_chapters == null || _bookmarks.isEmpty) {
+    if (_filteredChapters == null || _bookmarks.isEmpty) {
       return {};
     }
 
     final bookmarkIndices = <int>{};
     for (final bookmark in _bookmarks) {
       // Try to find matching chapter by name
-      final chapterIndex = _chapters!.indexWhere(
+      final chapterIndex = _filteredChapters!.indexWhere(
         (chapter) {
           final chapterTitle = chapter.Title?.trim() ?? '';
           final bookmarkChapter = bookmark.chapterName.trim();
@@ -610,33 +721,64 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> {
           // Account for slider thumb radius (10px on each side)
           const thumbRadius = 10.0;
           const indicatorSize = 8.0;
+          const tapTargetSize = 24.0; // Minimum touch target size
           final availableWidth = constraints.maxWidth - (thumbRadius * 2);
-          final leftPosition = (availableWidth * position) + thumbRadius - (indicatorSize / 2);
+          final leftPosition = (availableWidth * position) + thumbRadius - (tapTargetSize / 2);
 
           return Positioned(
             left: leftPosition,
-            child: Container(
-              width: indicatorSize,
-              height: indicatorSize,
-              decoration: BoxDecoration(
-                color: colorScheme.primary,
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: colorScheme.surface,
-                  width: 2,
+            child: GestureDetector(
+              onTap: () {
+                debugPrint('Bookmark indicator tapped for chapter $chapterIndex');
+
+                // Clear navigation flags
+                _navigationTimer?.cancel();
+                setState(() {
+                  _isUserDraggingSlider = false;
+                  _targetChapterIndex = chapterIndex;
+                  _currentChapterIndex = chapterIndex;
+                });
+
+                // Navigate to the chapter
+                _navigateToChapter(chapterIndex);
+
+                // Set timeout to clear navigation flags
+                _navigationTimer = Timer(const Duration(milliseconds: 1500), () {
+                  if (mounted) {
+                    setState(() {
+                      _targetChapterIndex = null;
+                    });
+                  }
+                });
+              },
+              child: Container(
+                width: tapTargetSize,
+                height: tapTargetSize,
+                alignment: Alignment.center,
+                child: Container(
+                  width: indicatorSize,
+                  height: indicatorSize,
+                  decoration: BoxDecoration(
+                    color: colorScheme.primary,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: colorScheme.surface,
+                      width: 2,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: colorScheme.primary.withValues(alpha: 0.4),
+                        blurRadius: 4,
+                        spreadRadius: 1,
+                      ),
+                      BoxShadow(
+                        color: colorScheme.shadow.withValues(alpha: 0.2),
+                        blurRadius: 2,
+                        offset: const Offset(0, 1),
+                      ),
+                    ],
+                  ),
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: colorScheme.primary.withValues(alpha: 0.4),
-                    blurRadius: 4,
-                    spreadRadius: 1,
-                  ),
-                  BoxShadow(
-                    color: colorScheme.shadow.withValues(alpha: 0.2),
-                    blurRadius: 2,
-                    offset: const Offset(0, 1),
-                  ),
-                ],
               ),
             ),
           );
@@ -672,10 +814,19 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> {
       }
 
       // Show dialog to add note
+      // Update screen name for add bookmark dialog
+      ref.read(currentScreenProvider.notifier).state = 'reader-add-bookmark';
+
       final note = await showDialog<String>(
         context: context,
         builder: (context) => const BookmarkNoteDialog(),
       );
+
+      // Reset screen name when dialog is closed
+      if (mounted) {
+        final screenName = _showProgressBar ? 'reader-progress' : 'reader';
+        ref.read(currentScreenProvider.notifier).state = screenName;
+      }
 
       if (note == null) return; // User cancelled
 
@@ -714,12 +865,15 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> {
   }
 
   void _showTableOfContents() {
-    if (_chapters == null || _chapters!.isEmpty) {
+    if (_filteredChapters == null || _filteredChapters!.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No table of contents available')),
       );
       return;
     }
+
+    // Update screen name for table of contents
+    ref.read(currentScreenProvider.notifier).state = 'reader-table-of-contents';
 
     showModalBottomSheet(
       context: context,
@@ -754,9 +908,9 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> {
               Expanded(
                 child: ListView.builder(
                   controller: scrollController,
-                  itemCount: _chapters!.length,
+                  itemCount: _filteredChapters!.length,
                   itemBuilder: (context, index) {
-                    final chapter = _chapters![index];
+                    final chapter = _filteredChapters![index];
                     return _buildChapterTile(chapter, 0, index);
                   },
                 ),
@@ -765,7 +919,13 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> {
           ),
         ),
       ),
-    );
+    ).then((_) {
+      // Reset screen name when bottom sheet is closed
+      if (mounted) {
+        final screenName = _showProgressBar ? 'reader-progress' : 'reader';
+        ref.read(currentScreenProvider.notifier).state = screenName;
+      }
+    });
   }
 
   Widget _buildChapterTile(EpubChapter chapter, int level, int index) {
@@ -779,8 +939,35 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> {
             overflow: TextOverflow.ellipsis,
           ),
           onTap: () {
-            if (chapter.Anchor != null) {
-              _epubController?.gotoEpubCfi(chapter.Anchor!);
+            if (chapter.Anchor != null && _filteredChapters != null) {
+              // Find the chapter index in filtered chapters
+              final chapterIndex = _filteredChapters!.indexWhere(
+                (ch) => ch.Anchor == chapter.Anchor,
+              );
+
+              if (chapterIndex != -1) {
+                // Clear any navigation flags and update state
+                _navigationTimer?.cancel();
+                setState(() {
+                  _isUserDraggingSlider = false;
+                  _targetChapterIndex = chapterIndex;
+                  _currentChapterIndex = chapterIndex;
+                });
+
+                // Navigate to the chapter
+                _epubController?.gotoEpubCfi(chapter.Anchor!);
+                debugPrint('TOC navigation to chapter $chapterIndex: ${chapter.Title}');
+
+                // Set timeout to clear navigation flags
+                _navigationTimer = Timer(const Duration(milliseconds: 1500), () {
+                  if (mounted) {
+                    setState(() {
+                      _targetChapterIndex = null;
+                    });
+                  }
+                });
+              }
+
               Navigator.pop(context);
             }
           },
@@ -794,6 +981,9 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> {
   }
 
   void _showFontSettings(BuildContext context) {
+    // Update screen name for font settings
+    ref.read(currentScreenProvider.notifier).state = 'reader-font-settings';
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -895,7 +1085,13 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> {
           ),
         ),
       ),
-    );
+    ).then((_) {
+      // Reset screen name when bottom sheet is closed
+      if (mounted) {
+        final screenName = _showProgressBar ? 'reader-progress' : 'reader';
+        ref.read(currentScreenProvider.notifier).state = screenName;
+      }
+    });
   }
 }
 
