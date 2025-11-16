@@ -13,6 +13,14 @@
 migrate_working_dir/
 nul
 
+# Screenshots
+screenshots/
+flutter_*.png
+
+# Application logs
+app_logs.txt
+app_logs.txt.err
+
 # IntelliJ related
 *.iml
 *.ipr
