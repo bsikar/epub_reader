@@ -78,7 +78,17 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> {
       final cfi = _epubController!.generateEpubCfi();
       if (cfi == null || cfi == _currentCfi) return;
 
+      // Don't save footer CFIs - they cause issues with chapter tracking
+      // Check for footer-heading anchor, not just pg-footer (which appears in all CFIs)
+      if (cfi.contains('[pg-footer-heading]') || cfi.contains('[pg-header]')) {
+        debugPrint('Skipping save of footer CFI: $cfi');
+        return;
+      }
+
       _currentCfi = cfi;
+
+      // Update chapter index based on CFI since onChapterChanged is unreliable
+      _updateChapterFromCfi(cfi);
 
       final updateProgress = ref.read(updateReadingProgressProvider);
       await updateProgress(
@@ -89,6 +99,33 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> {
       debugPrint('Progress saved: $cfi');
     } catch (e) {
       debugPrint('Error saving progress: $e');
+    }
+  }
+
+  void _updateChapterFromCfi(String cfi) {
+    if (_filteredChapters == null || _filteredChapters!.isEmpty) return;
+
+    try {
+      // Extract chapter anchors from CFI (e.g., [pgepubid00003] from epubcfi(/6/30[pg-footer]!/4/2[pgepubid00003]/10))
+      final anchorRegex = RegExp(r'\[([^\]]+)\]');
+      final matches = anchorRegex.allMatches(cfi);
+
+      for (final match in matches) {
+        final anchor = match.group(1);
+        if (anchor == null || anchor == 'pg-footer' || anchor == 'pg-header' || anchor == 'pg-footer-heading') continue;
+
+        // Find matching chapter
+        final chapterIndex = _filteredChapters!.indexWhere((ch) => ch.Anchor == anchor);
+        if (chapterIndex != -1 && chapterIndex != _currentChapterIndex) {
+          debugPrint('Chapter updated from CFI: $_currentChapterIndex -> $chapterIndex (anchor: $anchor)');
+          setState(() {
+            _currentChapterIndex = chapterIndex;
+          });
+          return;
+        }
+      }
+    } catch (e) {
+      debugPrint('Error extracting chapter from CFI: $e');
     }
   }
 
@@ -112,12 +149,19 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> {
       final savedCfi = widget.book.currentCfi;
       debugPrint('Loading EPUB with saved CFI: $savedCfi');
 
+      // Don't load footer CFIs - they cause the chapter indicator to not update
+      // Check for footer-heading anchor, not just pg-footer (which appears in all CFIs)
+      final cfiToLoad = (savedCfi != null && (savedCfi.contains('[pg-footer-heading]') || savedCfi.contains('[pg-header]'))) ? null : savedCfi;
+      if (savedCfi != null && cfiToLoad == null) {
+        debugPrint('Ignoring footer CFI on load: $savedCfi');
+      }
+
       _epubController = EpubController(
         document: Future.value(epubDoc),
-        epubCfi: savedCfi,
+        epubCfi: cfiToLoad,
       );
 
-      _currentCfi = savedCfi;
+      _currentCfi = cfiToLoad;
 
       setState(() {
         _isLoading = false;
@@ -524,8 +568,11 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> {
     final chapter = _filteredChapters![chapterIndex];
     debugPrint('Navigating to chapter $chapterIndex: "${chapter.Title}" (Anchor: ${chapter.Anchor})');
     if (chapter.Anchor != null) {
-      _epubController?.gotoEpubCfi(chapter.Anchor!);
-      debugPrint('Called gotoEpubCfi with: ${chapter.Anchor}');
+      // Construct proper CFI format for navigation
+      // Format: epubcfi(/6/30[pg-footer]!/4/2[anchor]/1)
+      final cfi = 'epubcfi(/6/30[pg-footer]!/4/2[${chapter.Anchor}])';
+      _epubController?.gotoEpubCfi(cfi);
+      debugPrint('Called gotoEpubCfi with: $cfi');
     } else {
       debugPrint('WARNING: Chapter $chapterIndex has no Anchor!');
     }
@@ -652,6 +699,11 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> {
           debugPrint('  - "${ch.Title}" (Anchor: ${ch.Anchor})');
         }
       }
+    }
+
+    // Update chapter index from loaded CFI (for persistence)
+    if (_currentCfi != null) {
+      _updateChapterFromCfi(_currentCfi!);
     }
 
     _loadBookmarks();
