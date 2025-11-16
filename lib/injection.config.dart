@@ -31,6 +31,8 @@ import 'features/reader/domain/usecases/get_bookmarks.dart' as _i574;
 import 'features/reader/domain/usecases/get_highlights.dart' as _i701;
 import 'features/reader/domain/usecases/update_highlight.dart' as _i584;
 import 'features/reader/domain/usecases/update_reading_progress.dart' as _i530;
+import 'shared/services/logger_service.dart' as _i950;
+import 'shared/services/share_service.dart' as _i1028;
 
 extension GetItInjectableX on _i174.GetIt {
   // initializes the registration of main-scope dependencies inside of GetIt
@@ -40,6 +42,8 @@ extension GetItInjectableX on _i174.GetIt {
   }) {
     final gh = _i526.GetItHelper(this, environment, environmentFilter);
     gh.singleton<_i476.StoragePathService>(() => _i476.StoragePathService());
+    gh.singleton<_i950.LoggerService>(() => _i950.LoggerService());
+    gh.singleton<_i1028.ShareService>(() => _i1028.ShareService());
     gh.factory<_i856.LibraryLocalDataSource>(
       () => _i856.LibraryLocalDataSource(gh<_i111.AppDatabase>()),
     );
