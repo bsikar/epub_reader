@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'dart:async';
+import 'dart:typed_data';
 import 'dart:ui' as ui;
+import 'package:image/image.dart' as img;
 import 'package:epub_reader/app.dart';
 import 'package:epub_reader/core/config/theme.dart';
 import 'package:epub_reader/features/library/domain/entities/book.dart';
@@ -13,6 +15,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:intl/intl.dart';
+import 'package:path_provider/path_provider.dart';
 
 class ReaderScreen extends ConsumerStatefulWidget {
   final Book book;
@@ -24,10 +27,11 @@ class ReaderScreen extends ConsumerStatefulWidget {
 }
 
 @visibleForTesting
-class ReaderScreenState extends ConsumerState<ReaderScreen> with SingleTickerProviderStateMixin {
+class ReaderScreenState extends ConsumerState<ReaderScreen> with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   final GlobalKey _screenshotKey = GlobalKey();
   EpubController? _epubController;
   bool _isLoading = true;
+  bool _epubFullyLoaded = false;
   String? _errorMessage;
   double _fontSize = 18.0;
   String _selectedTheme = 'sepia';
@@ -41,6 +45,7 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> with SingleTickerPro
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _appBarController = AnimationController(
       duration: const Duration(milliseconds: 300),
       vsync: this,
@@ -58,13 +63,20 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> with SingleTickerPro
 
   void _startProgressTracking() {
     _progressTracker = Timer.periodic(const Duration(seconds: 2), (timer) {
-      if (_epubController != null && mounted) {
+      if (_epubController != null && mounted && !_isLoading && _epubFullyLoaded) {
         _epubController!.getCurrentLocation().then((location) {
           if (location != null && location.startCfi != null && location.startCfi!.isNotEmpty) {
             _savePosition(location.startCfi!);
           }
         }).catchError((e) {
-          debugPrint('Error getting location: $e');
+          // Suppress common harmless errors during EPUB loading
+          final errorStr = e.toString();
+          if (!errorStr.contains('locations not loaded') && 
+              !errorStr.contains('rendition.location') &&
+              !errorStr.contains('not a subtype of type') &&
+              !errorStr.contains('Map<String, dynamic>')) {
+            debugPrint('Error getting location: $e');
+          }
         });
       }
     });
@@ -138,10 +150,15 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> with SingleTickerPro
 
   Future<void> _loadSavedPosition() async {
     if (widget.book.lastCfi != null && widget.book.lastCfi!.isNotEmpty) {
-      await Future.delayed(const Duration(milliseconds: 800));
+      // Wait longer to ensure the EPUB is fully loaded
+      await Future.delayed(const Duration(milliseconds: 1500));
       if (mounted && _epubController != null) {
-        _epubController!.display(cfi: widget.book.lastCfi!);
-        debugPrint('Loaded saved position: ${widget.book.lastCfi}');
+        try {
+          _epubController!.display(cfi: widget.book.lastCfi!);
+          debugPrint('Loaded saved position: ${widget.book.lastCfi}');
+        } catch (e) {
+          debugPrint('Error loading saved position: $e');
+        }
       }
     }
   }
@@ -161,9 +178,17 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> with SingleTickerPro
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _progressTracker?.cancel();
     _appBarController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Override to prevent WebView resume errors on macOS
+    // The flutter_epub_reader package tries to call resume which isn't implemented on macOS
+    super.didChangeAppLifecycleState(state);
   }
 
   void _toggleAppBar() {
@@ -191,46 +216,129 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> with SingleTickerPro
 
   Future<void> _takeScreenshot() async {
     try {
+      debugPrint('Screenshot requested');
+      
+      // Try to create composite screenshot with WebView content and Flutter UI
+      Uint8List? compositeBytes = await _createCompositeScreenshot();
+      
+      if (compositeBytes != null) {
+        await _saveScreenshotBytes(compositeBytes);
+        debugPrint('Screenshot taken (composite with WebView content)');
+        return;
+      }
+      
+      // Fallback to RepaintBoundary method
       final RenderRepaintBoundary? boundary = _screenshotKey.currentContext
           ?.findRenderObject() as RenderRepaintBoundary?;
 
-      if (boundary == null) return;
+      if (boundary == null) {
+        debugPrint('Screenshot failed: boundary is null');
+        return;
+      }
 
       final ui.Image image = await boundary.toImage(pixelRatio: 3.0);
       final ByteData? byteData = await image.toByteData(
         format: ui.ImageByteFormat.png,
       );
 
-      if (byteData == null) return;
-
-      String projectPath;
-      if (Platform.isWindows) {
-        final userHome = Platform.environment['USERPROFILE'] ?? Platform.environment['HOME'];
-        if (userHome != null) {
-          projectPath = '$userHome\\IdeaProjects\\epub_reader\\screenshots';
-        } else {
-          projectPath = '${Directory.systemTemp.path}\\epub_screenshots';
-        }
-      } else {
-        projectPath = '${Directory.systemTemp.path}/epub_screenshots';
+      if (byteData == null) {
+        debugPrint('Screenshot failed: byteData is null');
+        return;
       }
 
-      final Directory screenshotsDir = Directory(projectPath);
-
-      if (!await screenshotsDir.exists()) {
-        await screenshotsDir.create(recursive: true);
-      }
-
-      final String screenName = ref.read(currentScreenProvider);
-      final String timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
-      final String filename = '${timestamp}_screenshot_$screenName.png';
-      final String filePath = '${screenshotsDir.path}${Platform.pathSeparator}$filename';
-
-      final File file = File(filePath);
-      await file.writeAsBytes(byteData.buffer.asUint8List());
+      await _saveScreenshotBytes(byteData.buffer.asUint8List());
+      debugPrint('Screenshot taken from RepaintBoundary (fallback)');
     } catch (e) {
+      debugPrint('Screenshot error: $e');
       // Silently fail - don't disrupt user experience
     }
+  }
+
+  Future<Uint8List?> _createCompositeScreenshot() async {
+    try {
+      // Get WebView screenshot
+      final webViewBytes = await _epubController?.webViewController?.takeScreenshot();
+      if (webViewBytes == null) return null;
+      
+      // Get Flutter UI screenshot  
+      final RenderRepaintBoundary? boundary = _screenshotKey.currentContext
+          ?.findRenderObject() as RenderRepaintBoundary?;
+      if (boundary == null) return null;
+      
+      final ui.Image uiImage = await boundary.toImage(pixelRatio: 3.0);
+      final ByteData? uiByteData = await uiImage.toByteData(format: ui.ImageByteFormat.png);
+      if (uiByteData == null) return null;
+      
+      // Convert to image package format
+      final webViewImage = img.decodeImage(webViewBytes);
+      final uiImageData = img.decodeImage(uiByteData.buffer.asUint8List());
+      
+      if (webViewImage == null || uiImageData == null) return null;
+      
+      // Create composite by overlaying WebView content onto UI
+      // The UI image should have a transparent area where the WebView is
+      final composite = img.Image.from(uiImageData);
+      
+      // Calculate WebView area position (roughly center area minus header/footer)
+      final headerHeight = (composite.height * 0.15).round(); // Approximate header
+      final footerHeight = (composite.height * 0.1).round();  // Approximate footer
+      final contentHeight = composite.height - headerHeight - footerHeight;
+      
+      // Resize WebView image to fit content area
+      final resizedWebView = img.copyResize(
+        webViewImage, 
+        width: composite.width,
+        height: contentHeight,
+      );
+      
+      // Composite the images
+      img.drawImage(composite, resizedWebView, dstX: 0, dstY: headerHeight);
+      
+      return Uint8List.fromList(img.encodePng(composite));
+    } catch (e) {
+      debugPrint('Composite screenshot error: $e');
+      return null;
+    }
+  }
+
+  Future<void> _saveScreenshotBytes(Uint8List bytes) async {
+    String projectPath;
+    if (Platform.isWindows) {
+      final userHome = Platform.environment['USERPROFILE'] ?? Platform.environment['HOME'];
+      if (userHome != null) {
+        projectPath = '$userHome\\IdeaProjects\\epub_reader\\screenshots';
+      } else {
+        projectPath = '${Directory.systemTemp.path}\\epub_screenshots';
+      }
+    } else if (Platform.isMacOS) {
+      final userHome = Platform.environment['HOME'];
+      if (userHome != null) {
+        projectPath = '$userHome/Documents/git/epub_reader/screenshots';
+      } else {
+        final appDocuments = await getApplicationDocumentsDirectory();
+        projectPath = '${appDocuments.path}/epub_screenshots';
+      }
+    } else {
+      // Linux and other platforms
+      final appDocuments = await getApplicationDocumentsDirectory();
+      projectPath = '${appDocuments.path}/epub_screenshots';
+    }
+
+    final Directory screenshotsDir = Directory(projectPath);
+
+    if (!await screenshotsDir.exists()) {
+      await screenshotsDir.create(recursive: true);
+      debugPrint('Created screenshot directory: $projectPath');
+    }
+
+    final String screenName = ref.read(currentScreenProvider);
+    final String timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+    final String filename = '${timestamp}_screenshot_$screenName.png';
+    final String filePath = '${screenshotsDir.path}${Platform.pathSeparator}$filename';
+
+    final File file = File(filePath);
+    await file.writeAsBytes(bytes);
+    debugPrint('Screenshot saved: $filePath');
   }
 
   void _hideScrollbars() {
@@ -565,8 +673,15 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> with SingleTickerPro
                         foregroundColor: themeColors.onBackground,
                       ),
                     ),
-                    onEpubLoaded: () {
+                    onEpubLoaded: () async {
+                      debugPrint('EPUB loaded successfully');
                       _hideScrollbars();
+                      // Wait a bit more before allowing location tracking
+                      await Future.delayed(const Duration(milliseconds: 1000));
+                      setState(() {
+                        _epubFullyLoaded = true;
+                      });
+                      debugPrint('EPUB fully initialized');
                     },
                     onRelocated: (location) {
                       // Re-inject customizations after any page navigation/reload
