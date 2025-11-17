@@ -7,7 +7,6 @@ import 'package:path_provider/path_provider.dart';
 import 'package:epub_reader/core/database/app_database.dart';
 import 'package:drift/drift.dart' as drift;
 import 'dart:typed_data';
-import 'package:epub_reader/features/library/presentation/providers/library_provider.dart';
 import 'package:epub_reader/features/import/domain/usecases/import_epub.dart';
 import 'dart:io';
 
@@ -96,8 +95,6 @@ class TestApp {
       filePath: filePath ?? '$testDirectoryPath/books/${title.toLowerCase().replaceAll(' ', '_')}.epub',
       coverPath: coverPath == null ? const drift.Value.absent() : drift.Value(coverPath),
       addedDate: drift.Value(DateTime.now()),
-      readingProgress: drift.Value(readingProgress),
-      currentCfi: currentCfi == null ? const drift.Value.absent() : drift.Value(currentCfi),
     );
 
     return await database.into(database.books).insert(companion);

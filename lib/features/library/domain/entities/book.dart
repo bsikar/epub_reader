@@ -12,10 +12,7 @@ class Book extends Equatable {
   final String? description;
   final DateTime addedDate;
   final DateTime? lastOpened;
-  final double readingProgress;
-  final int currentPage;
-  final int totalPages;
-  final String? currentCfi;
+  final String? lastCfi;
 
   const Book({
     this.id,
@@ -29,10 +26,7 @@ class Book extends Equatable {
     this.description,
     required this.addedDate,
     this.lastOpened,
-    this.readingProgress = 0.0,
-    this.currentPage = 0,
-    this.totalPages = 0,
-    this.currentCfi,
+    this.lastCfi,
   });
 
   Book copyWith({
@@ -47,10 +41,7 @@ class Book extends Equatable {
     String? description,
     DateTime? addedDate,
     DateTime? lastOpened,
-    double? readingProgress,
-    int? currentPage,
-    int? totalPages,
-    String? currentCfi,
+    String? lastCfi,
   }) {
     return Book(
       id: id ?? this.id,
@@ -64,10 +55,7 @@ class Book extends Equatable {
       description: description ?? this.description,
       addedDate: addedDate ?? this.addedDate,
       lastOpened: lastOpened ?? this.lastOpened,
-      readingProgress: readingProgress ?? this.readingProgress,
-      currentPage: currentPage ?? this.currentPage,
-      totalPages: totalPages ?? this.totalPages,
-      currentCfi: currentCfi ?? this.currentCfi,
+      lastCfi: lastCfi ?? this.lastCfi,
     );
   }
 
@@ -84,9 +72,6 @@ class Book extends Equatable {
         description,
         addedDate,
         lastOpened,
-        readingProgress,
-        currentPage,
-        totalPages,
-        currentCfi,
+        lastCfi,
       ];
 }

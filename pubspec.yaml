@@ -15,7 +15,7 @@ dependencies:
   cupertino_icons: ^1.0.8
 
   # EPUB Handling
-  epub_view: ^3.1.0
+  flutter_epub_reader: ^1.0.5
   archive: ^3.6.1
   xml: ^6.5.0
 
@@ -88,6 +88,7 @@ dev_dependencies:
   mocktail: ^1.0.4
   bloc_test: ^9.1.7
 
+  epub_view: any
 flutter:
   uses-material-design: true
 

@@ -59,10 +59,6 @@ class TestData {
       description: description ?? 'This is a test book description for integration testing.',
       addedDate: addedDate ?? DateTime.now(),
       lastOpened: lastOpened,
-      readingProgress: readingProgress,
-      currentPage: currentPage ?? 0,
-      totalPages: totalPages ?? 300,
-      currentCfi: currentCfi,
     );
   }
 

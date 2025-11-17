@@ -63,17 +63,6 @@ class BookGridItem extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                     const Spacer(),
-                    if (book.readingProgress > 0) ...[
-                      LinearProgressIndicator(
-                        value: book.readingProgress,
-                        backgroundColor: Colors.grey[300],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${(book.readingProgress * 100).toInt()}%',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
                   ],
                 ),
               ),

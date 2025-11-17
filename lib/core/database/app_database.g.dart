@@ -126,48 +126,12 @@ class $BooksTable extends Books with TableInfo<$BooksTable, Book> {
     type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _readingProgressMeta = const VerificationMeta(
-    'readingProgress',
+  static const VerificationMeta _lastCfiMeta = const VerificationMeta(
+    'lastCfi',
   );
   @override
-  late final GeneratedColumn<double> readingProgress = GeneratedColumn<double>(
-    'reading_progress',
-    aliasedName,
-    false,
-    type: DriftSqlType.double,
-    requiredDuringInsert: false,
-    defaultValue: const Constant(0.0),
-  );
-  static const VerificationMeta _currentPageMeta = const VerificationMeta(
-    'currentPage',
-  );
-  @override
-  late final GeneratedColumn<int> currentPage = GeneratedColumn<int>(
-    'current_page',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-    defaultValue: const Constant(0),
-  );
-  static const VerificationMeta _totalPagesMeta = const VerificationMeta(
-    'totalPages',
-  );
-  @override
-  late final GeneratedColumn<int> totalPages = GeneratedColumn<int>(
-    'total_pages',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-    defaultValue: const Constant(0),
-  );
-  static const VerificationMeta _currentCfiMeta = const VerificationMeta(
-    'currentCfi',
-  );
-  @override
-  late final GeneratedColumn<String> currentCfi = GeneratedColumn<String>(
-    'current_cfi',
+  late final GeneratedColumn<String> lastCfi = GeneratedColumn<String>(
+    'last_cfi',
     aliasedName,
     true,
     type: DriftSqlType.string,
@@ -186,10 +150,7 @@ class $BooksTable extends Books with TableInfo<$BooksTable, Book> {
     description,
     addedDate,
     lastOpened,
-    readingProgress,
-    currentPage,
-    totalPages,
-    currentCfi,
+    lastCfi,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -275,34 +236,10 @@ class $BooksTable extends Books with TableInfo<$BooksTable, Book> {
         lastOpened.isAcceptableOrUnknown(data['last_opened']!, _lastOpenedMeta),
       );
     }
-    if (data.containsKey('reading_progress')) {
+    if (data.containsKey('last_cfi')) {
       context.handle(
-        _readingProgressMeta,
-        readingProgress.isAcceptableOrUnknown(
-          data['reading_progress']!,
-          _readingProgressMeta,
-        ),
-      );
-    }
-    if (data.containsKey('current_page')) {
-      context.handle(
-        _currentPageMeta,
-        currentPage.isAcceptableOrUnknown(
-          data['current_page']!,
-          _currentPageMeta,
-        ),
-      );
-    }
-    if (data.containsKey('total_pages')) {
-      context.handle(
-        _totalPagesMeta,
-        totalPages.isAcceptableOrUnknown(data['total_pages']!, _totalPagesMeta),
-      );
-    }
-    if (data.containsKey('current_cfi')) {
-      context.handle(
-        _currentCfiMeta,
-        currentCfi.isAcceptableOrUnknown(data['current_cfi']!, _currentCfiMeta),
+        _lastCfiMeta,
+        lastCfi.isAcceptableOrUnknown(data['last_cfi']!, _lastCfiMeta),
       );
     }
     return context;
@@ -358,21 +295,9 @@ class $BooksTable extends Books with TableInfo<$BooksTable, Book> {
         DriftSqlType.dateTime,
         data['${effectivePrefix}last_opened'],
       ),
-      readingProgress: attachedDatabase.typeMapping.read(
-        DriftSqlType.double,
-        data['${effectivePrefix}reading_progress'],
-      )!,
-      currentPage: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}current_page'],
-      )!,
-      totalPages: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}total_pages'],
-      )!,
-      currentCfi: attachedDatabase.typeMapping.read(
+      lastCfi: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}current_cfi'],
+        data['${effectivePrefix}last_cfi'],
       ),
     );
   }
@@ -395,10 +320,7 @@ class Book extends DataClass implements Insertable<Book> {
   final String? description;
   final DateTime addedDate;
   final DateTime? lastOpened;
-  final double readingProgress;
-  final int currentPage;
-  final int totalPages;
-  final String? currentCfi;
+  final String? lastCfi;
   const Book({
     required this.id,
     required this.title,
@@ -411,10 +333,7 @@ class Book extends DataClass implements Insertable<Book> {
     this.description,
     required this.addedDate,
     this.lastOpened,
-    required this.readingProgress,
-    required this.currentPage,
-    required this.totalPages,
-    this.currentCfi,
+    this.lastCfi,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -442,11 +361,8 @@ class Book extends DataClass implements Insertable<Book> {
     if (!nullToAbsent || lastOpened != null) {
       map['last_opened'] = Variable<DateTime>(lastOpened);
     }
-    map['reading_progress'] = Variable<double>(readingProgress);
-    map['current_page'] = Variable<int>(currentPage);
-    map['total_pages'] = Variable<int>(totalPages);
-    if (!nullToAbsent || currentCfi != null) {
-      map['current_cfi'] = Variable<String>(currentCfi);
+    if (!nullToAbsent || lastCfi != null) {
+      map['last_cfi'] = Variable<String>(lastCfi);
     }
     return map;
   }
@@ -474,12 +390,9 @@ class Book extends DataClass implements Insertable<Book> {
       lastOpened: lastOpened == null && nullToAbsent
           ? const Value.absent()
           : Value(lastOpened),
-      readingProgress: Value(readingProgress),
-      currentPage: Value(currentPage),
-      totalPages: Value(totalPages),
-      currentCfi: currentCfi == null && nullToAbsent
+      lastCfi: lastCfi == null && nullToAbsent
           ? const Value.absent()
-          : Value(currentCfi),
+          : Value(lastCfi),
     );
   }
 
@@ -500,10 +413,7 @@ class Book extends DataClass implements Insertable<Book> {
       description: serializer.fromJson<String?>(json['description']),
       addedDate: serializer.fromJson<DateTime>(json['addedDate']),
       lastOpened: serializer.fromJson<DateTime?>(json['lastOpened']),
-      readingProgress: serializer.fromJson<double>(json['readingProgress']),
-      currentPage: serializer.fromJson<int>(json['currentPage']),
-      totalPages: serializer.fromJson<int>(json['totalPages']),
-      currentCfi: serializer.fromJson<String?>(json['currentCfi']),
+      lastCfi: serializer.fromJson<String?>(json['lastCfi']),
     );
   }
   @override
@@ -521,10 +431,7 @@ class Book extends DataClass implements Insertable<Book> {
       'description': serializer.toJson<String?>(description),
       'addedDate': serializer.toJson<DateTime>(addedDate),
       'lastOpened': serializer.toJson<DateTime?>(lastOpened),
-      'readingProgress': serializer.toJson<double>(readingProgress),
-      'currentPage': serializer.toJson<int>(currentPage),
-      'totalPages': serializer.toJson<int>(totalPages),
-      'currentCfi': serializer.toJson<String?>(currentCfi),
+      'lastCfi': serializer.toJson<String?>(lastCfi),
     };
   }
 
@@ -540,10 +447,7 @@ class Book extends DataClass implements Insertable<Book> {
     Value<String?> description = const Value.absent(),
     DateTime? addedDate,
     Value<DateTime?> lastOpened = const Value.absent(),
-    double? readingProgress,
-    int? currentPage,
-    int? totalPages,
-    Value<String?> currentCfi = const Value.absent(),
+    Value<String?> lastCfi = const Value.absent(),
   }) => Book(
     id: id ?? this.id,
     title: title ?? this.title,
@@ -556,10 +460,7 @@ class Book extends DataClass implements Insertable<Book> {
     description: description.present ? description.value : this.description,
     addedDate: addedDate ?? this.addedDate,
     lastOpened: lastOpened.present ? lastOpened.value : this.lastOpened,
-    readingProgress: readingProgress ?? this.readingProgress,
-    currentPage: currentPage ?? this.currentPage,
-    totalPages: totalPages ?? this.totalPages,
-    currentCfi: currentCfi.present ? currentCfi.value : this.currentCfi,
+    lastCfi: lastCfi.present ? lastCfi.value : this.lastCfi,
   );
   Book copyWithCompanion(BooksCompanion data) {
     return Book(
@@ -578,18 +479,7 @@ class Book extends DataClass implements Insertable<Book> {
       lastOpened: data.lastOpened.present
           ? data.lastOpened.value
           : this.lastOpened,
-      readingProgress: data.readingProgress.present
-          ? data.readingProgress.value
-          : this.readingProgress,
-      currentPage: data.currentPage.present
-          ? data.currentPage.value
-          : this.currentPage,
-      totalPages: data.totalPages.present
-          ? data.totalPages.value
-          : this.totalPages,
-      currentCfi: data.currentCfi.present
-          ? data.currentCfi.value
-          : this.currentCfi,
+      lastCfi: data.lastCfi.present ? data.lastCfi.value : this.lastCfi,
     );
   }
 
@@ -607,10 +497,7 @@ class Book extends DataClass implements Insertable<Book> {
           ..write('description: $description, ')
           ..write('addedDate: $addedDate, ')
           ..write('lastOpened: $lastOpened, ')
-          ..write('readingProgress: $readingProgress, ')
-          ..write('currentPage: $currentPage, ')
-          ..write('totalPages: $totalPages, ')
-          ..write('currentCfi: $currentCfi')
+          ..write('lastCfi: $lastCfi')
           ..write(')'))
         .toString();
   }
@@ -628,10 +515,7 @@ class Book extends DataClass implements Insertable<Book> {
     description,
     addedDate,
     lastOpened,
-    readingProgress,
-    currentPage,
-    totalPages,
-    currentCfi,
+    lastCfi,
   );
   @override
   bool operator ==(Object other) =>
@@ -648,10 +532,7 @@ class Book extends DataClass implements Insertable<Book> {
           other.description == this.description &&
           other.addedDate == this.addedDate &&
           other.lastOpened == this.lastOpened &&
-          other.readingProgress == this.readingProgress &&
-          other.currentPage == this.currentPage &&
-          other.totalPages == this.totalPages &&
-          other.currentCfi == this.currentCfi);
+          other.lastCfi == this.lastCfi);
 }
 
 class BooksCompanion extends UpdateCompanion<Book> {
@@ -666,10 +547,7 @@ class BooksCompanion extends UpdateCompanion<Book> {
   final Value<String?> description;
   final Value<DateTime> addedDate;
   final Value<DateTime?> lastOpened;
-  final Value<double> readingProgress;
-  final Value<int> currentPage;
-  final Value<int> totalPages;
-  final Value<String?> currentCfi;
+  final Value<String?> lastCfi;
   const BooksCompanion({
     this.id = const Value.absent(),
     this.title = const Value.absent(),
@@ -682,10 +560,7 @@ class BooksCompanion extends UpdateCompanion<Book> {
     this.description = const Value.absent(),
     this.addedDate = const Value.absent(),
     this.lastOpened = const Value.absent(),
-    this.readingProgress = const Value.absent(),
-    this.currentPage = const Value.absent(),
-    this.totalPages = const Value.absent(),
-    this.currentCfi = const Value.absent(),
+    this.lastCfi = const Value.absent(),
   });
   BooksCompanion.insert({
     this.id = const Value.absent(),
@@ -699,10 +574,7 @@ class BooksCompanion extends UpdateCompanion<Book> {
     this.description = const Value.absent(),
     this.addedDate = const Value.absent(),
     this.lastOpened = const Value.absent(),
-    this.readingProgress = const Value.absent(),
-    this.currentPage = const Value.absent(),
-    this.totalPages = const Value.absent(),
-    this.currentCfi = const Value.absent(),
+    this.lastCfi = const Value.absent(),
   }) : title = Value(title),
        author = Value(author),
        filePath = Value(filePath);
@@ -718,10 +590,7 @@ class BooksCompanion extends UpdateCompanion<Book> {
     Expression<String>? description,
     Expression<DateTime>? addedDate,
     Expression<DateTime>? lastOpened,
-    Expression<double>? readingProgress,
-    Expression<int>? currentPage,
-    Expression<int>? totalPages,
-    Expression<String>? currentCfi,
+    Expression<String>? lastCfi,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -735,10 +604,7 @@ class BooksCompanion extends UpdateCompanion<Book> {
       if (description != null) 'description': description,
       if (addedDate != null) 'added_date': addedDate,
       if (lastOpened != null) 'last_opened': lastOpened,
-      if (readingProgress != null) 'reading_progress': readingProgress,
-      if (currentPage != null) 'current_page': currentPage,
-      if (totalPages != null) 'total_pages': totalPages,
-      if (currentCfi != null) 'current_cfi': currentCfi,
+      if (lastCfi != null) 'last_cfi': lastCfi,
     });
   }
 
@@ -754,10 +620,7 @@ class BooksCompanion extends UpdateCompanion<Book> {
     Value<String?>? description,
     Value<DateTime>? addedDate,
     Value<DateTime?>? lastOpened,
-    Value<double>? readingProgress,
-    Value<int>? currentPage,
-    Value<int>? totalPages,
-    Value<String?>? currentCfi,
+    Value<String?>? lastCfi,
   }) {
     return BooksCompanion(
       id: id ?? this.id,
@@ -771,10 +634,7 @@ class BooksCompanion extends UpdateCompanion<Book> {
       description: description ?? this.description,
       addedDate: addedDate ?? this.addedDate,
       lastOpened: lastOpened ?? this.lastOpened,
-      readingProgress: readingProgress ?? this.readingProgress,
-      currentPage: currentPage ?? this.currentPage,
-      totalPages: totalPages ?? this.totalPages,
-      currentCfi: currentCfi ?? this.currentCfi,
+      lastCfi: lastCfi ?? this.lastCfi,
     );
   }
 
@@ -814,17 +674,8 @@ class BooksCompanion extends UpdateCompanion<Book> {
     if (lastOpened.present) {
       map['last_opened'] = Variable<DateTime>(lastOpened.value);
     }
-    if (readingProgress.present) {
-      map['reading_progress'] = Variable<double>(readingProgress.value);
-    }
-    if (currentPage.present) {
-      map['current_page'] = Variable<int>(currentPage.value);
-    }
-    if (totalPages.present) {
-      map['total_pages'] = Variable<int>(totalPages.value);
-    }
-    if (currentCfi.present) {
-      map['current_cfi'] = Variable<String>(currentCfi.value);
+    if (lastCfi.present) {
+      map['last_cfi'] = Variable<String>(lastCfi.value);
     }
     return map;
   }
@@ -843,10 +694,7 @@ class BooksCompanion extends UpdateCompanion<Book> {
           ..write('description: $description, ')
           ..write('addedDate: $addedDate, ')
           ..write('lastOpened: $lastOpened, ')
-          ..write('readingProgress: $readingProgress, ')
-          ..write('currentPage: $currentPage, ')
-          ..write('totalPages: $totalPages, ')
-          ..write('currentCfi: $currentCfi')
+          ..write('lastCfi: $lastCfi')
           ..write(')'))
         .toString();
   }
@@ -4342,10 +4190,7 @@ typedef $$BooksTableCreateCompanionBuilder =
       Value<String?> description,
       Value<DateTime> addedDate,
       Value<DateTime?> lastOpened,
-      Value<double> readingProgress,
-      Value<int> currentPage,
-      Value<int> totalPages,
-      Value<String?> currentCfi,
+      Value<String?> lastCfi,
     });
 typedef $$BooksTableUpdateCompanionBuilder =
     BooksCompanion Function({
@@ -4360,10 +4205,7 @@ typedef $$BooksTableUpdateCompanionBuilder =
       Value<String?> description,
       Value<DateTime> addedDate,
       Value<DateTime?> lastOpened,
-      Value<double> readingProgress,
-      Value<int> currentPage,
-      Value<int> totalPages,
-      Value<String?> currentCfi,
+      Value<String?> lastCfi,
     });
 
 final class $$BooksTableReferences
@@ -4555,23 +4397,8 @@ class $$BooksTableFilterComposer extends Composer<_$AppDatabase, $BooksTable> {
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<double> get readingProgress => $composableBuilder(
-    column: $table.readingProgress,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get currentPage => $composableBuilder(
-    column: $table.currentPage,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get totalPages => $composableBuilder(
-    column: $table.totalPages,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get currentCfi => $composableBuilder(
-    column: $table.currentCfi,
+  ColumnFilters<String> get lastCfi => $composableBuilder(
+    column: $table.lastCfi,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -4790,23 +4617,8 @@ class $$BooksTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<double> get readingProgress => $composableBuilder(
-    column: $table.readingProgress,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<int> get currentPage => $composableBuilder(
-    column: $table.currentPage,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<int> get totalPages => $composableBuilder(
-    column: $table.totalPages,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get currentCfi => $composableBuilder(
-    column: $table.currentCfi,
+  ColumnOrderings<String> get lastCfi => $composableBuilder(
+    column: $table.lastCfi,
     builder: (column) => ColumnOrderings(column),
   );
 }
@@ -4857,25 +4669,8 @@ class $$BooksTableAnnotationComposer
     builder: (column) => column,
   );
 
-  GeneratedColumn<double> get readingProgress => $composableBuilder(
-    column: $table.readingProgress,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<int> get currentPage => $composableBuilder(
-    column: $table.currentPage,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<int> get totalPages => $composableBuilder(
-    column: $table.totalPages,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<String> get currentCfi => $composableBuilder(
-    column: $table.currentCfi,
-    builder: (column) => column,
-  );
+  GeneratedColumn<String> get lastCfi =>
+      $composableBuilder(column: $table.lastCfi, builder: (column) => column);
 
   Expression<T> bookmarksRefs<T extends Object>(
     Expression<T> Function($$BookmarksTableAnnotationComposer a) f,
@@ -5075,10 +4870,7 @@ class $$BooksTableTableManager
                 Value<String?> description = const Value.absent(),
                 Value<DateTime> addedDate = const Value.absent(),
                 Value<DateTime?> lastOpened = const Value.absent(),
-                Value<double> readingProgress = const Value.absent(),
-                Value<int> currentPage = const Value.absent(),
-                Value<int> totalPages = const Value.absent(),
-                Value<String?> currentCfi = const Value.absent(),
+                Value<String?> lastCfi = const Value.absent(),
               }) => BooksCompanion(
                 id: id,
                 title: title,
@@ -5091,10 +4883,7 @@ class $$BooksTableTableManager
                 description: description,
                 addedDate: addedDate,
                 lastOpened: lastOpened,
-                readingProgress: readingProgress,
-                currentPage: currentPage,
-                totalPages: totalPages,
-                currentCfi: currentCfi,
+                lastCfi: lastCfi,
               ),
           createCompanionCallback:
               ({
@@ -5109,10 +4898,7 @@ class $$BooksTableTableManager
                 Value<String?> description = const Value.absent(),
                 Value<DateTime> addedDate = const Value.absent(),
                 Value<DateTime?> lastOpened = const Value.absent(),
-                Value<double> readingProgress = const Value.absent(),
-                Value<int> currentPage = const Value.absent(),
-                Value<int> totalPages = const Value.absent(),
-                Value<String?> currentCfi = const Value.absent(),
+                Value<String?> lastCfi = const Value.absent(),
               }) => BooksCompanion.insert(
                 id: id,
                 title: title,
@@ -5125,10 +4911,7 @@ class $$BooksTableTableManager
                 description: description,
                 addedDate: addedDate,
                 lastOpened: lastOpened,
-                readingProgress: readingProgress,
-                currentPage: currentPage,
-                totalPages: totalPages,
-                currentCfi: currentCfi,
+                lastCfi: lastCfi,
               ),
           withReferenceMapper: (p0) => p0
               .map(

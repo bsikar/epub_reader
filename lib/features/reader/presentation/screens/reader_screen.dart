@@ -1,14 +1,17 @@
 import 'dart:io';
 import 'dart:async';
+import 'dart:ui' as ui;
 import 'package:epub_reader/app.dart';
-import 'package:epub_reader/core/database/app_database.dart' as db;
+import 'package:epub_reader/core/config/theme.dart';
 import 'package:epub_reader/features/library/domain/entities/book.dart';
 import 'package:epub_reader/features/reader/presentation/providers/reader_providers.dart';
 import 'package:epub_reader/features/reader/presentation/widgets/bookmarks_drawer.dart';
-import 'package:epub_view/epub_view.dart';
-import 'package:flutter/foundation.dart' show kDebugMode, visibleForTesting;
+import 'package:flutter_epub_reader/flutter_epub_reader.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 class ReaderScreen extends ConsumerStatefulWidget {
   final Book book;
@@ -20,1194 +23,763 @@ class ReaderScreen extends ConsumerStatefulWidget {
 }
 
 @visibleForTesting
-class ReaderScreenState extends ConsumerState<ReaderScreen> {
+class ReaderScreenState extends ConsumerState<ReaderScreen> with SingleTickerProviderStateMixin {
+  final GlobalKey _screenshotKey = GlobalKey();
   EpubController? _epubController;
   bool _isLoading = true;
   String? _errorMessage;
-  double _fontSize = 16.0;
-  String _selectedTheme = 'light';
-  List<EpubChapter>? _chapters;
-  List<EpubChapter>? _filteredChapters; // Chapters without footer
-  Timer? _progressSaveTimer;
-  Timer? _chapterUpdateTimer; // Frequent timer for real-time chapter updates
-  String? _currentCfi;
-  int _currentChapterIndex = 0;
-  bool _showProgressBar = true;
-  List<db.Bookmark> _bookmarks = [];
-  bool _isUserDraggingSlider = false;
-  int? _targetChapterIndex;
-  Timer? _navigationTimer;
-  String _currentOverlay = '';
-
-  // Test helpers
-  @visibleForTesting
-  void setChaptersForTesting(List<EpubChapter>? chapters) {
-    _chapters = chapters;
-    _filteredChapters = chapters?.where((chapter) => !_isFooterChapter(chapter)).toList();
-  }
-
-  @visibleForTesting
-  void setBookmarksForTesting(List<db.Bookmark> bookmarks) {
-    _bookmarks = bookmarks;
-  }
-
-  @visibleForTesting
-  int get currentChapterIndex => _currentChapterIndex;
-
-  @visibleForTesting
-  int? get filteredChaptersLength => _filteredChapters?.length;
+  double _fontSize = 18.0;
+  String _selectedTheme = 'sepia';
+  String? _currentChapter;
+  double _currentProgress = 0.0;
+  bool _showAppBar = true;
+  late AnimationController _appBarController;
+  late Animation<Offset> _appBarSlideAnimation;
+  Timer? _progressTracker;
 
   @override
   void initState() {
     super.initState();
-    _loadEpub();
-    _startAutoSave();
+    _appBarController = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    _appBarSlideAnimation = Tween<Offset>(
+      begin: Offset.zero,
+      end: const Offset(0, -1),
+    ).animate(CurvedAnimation(
+      parent: _appBarController,
+      curve: Curves.easeInOut,
+    ));
+    _initializeReader();
+    _startProgressTracking();
   }
 
-  // coverage:ignore-start
-  void _startAutoSave() {
-    // Auto-save reading progress every 5 seconds
-    _progressSaveTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
-      _saveProgress();
+  void _startProgressTracking() {
+    _progressTracker = Timer.periodic(const Duration(seconds: 2), (timer) {
+      if (_epubController != null && mounted) {
+        _epubController!.getCurrentLocation().then((location) {
+          if (location != null && location.startCfi != null && location.startCfi!.isNotEmpty) {
+            _savePosition(location.startCfi!);
+          }
+        }).catchError((e) {
+          debugPrint('Error getting location: $e');
+        });
+      }
     });
-
-    // Update chapter indicator in real-time (every 300ms)
-    _chapterUpdateTimer = Timer.periodic(const Duration(milliseconds: 300), (timer) {
-      _updateChapterIndicator();
-    });
   }
 
-  void _updateChapterIndicator() {
-    if (_epubController == null || _filteredChapters == null) return;
-
-    try {
-      final cfi = _epubController!.generateEpubCfi();
-      if (cfi != null && cfi != _currentCfi) {
-        // Don't update _currentCfi here (that's for saving), just update the UI
-        if (!cfi.contains('[pg-footer-heading]') && !cfi.contains('[pg-header]')) {
-          _updateChapterFromCfi(cfi);
-        }
-      }
-    } catch (e) {
-      // Silently ignore errors during frequent updates
-    }
-  }
-
-  Future<void> _saveProgress() async {
-    if (_epubController == null || widget.book.id == null) return;
-
-    try {
-      final cfi = _epubController!.generateEpubCfi();
-      if (cfi == null || cfi == _currentCfi) return;
-
-      // Don't save footer CFIs - they cause issues with chapter tracking
-      // Check for footer-heading anchor, not just pg-footer (which appears in all CFIs)
-      if (cfi.contains('[pg-footer-heading]') || cfi.contains('[pg-header]')) {
-        debugPrint('Skipping save of footer CFI: $cfi');
-        return;
-      }
-
-      _currentCfi = cfi;
-
-      // Update chapter index based on CFI since onChapterChanged is unreliable
-      _updateChapterFromCfi(cfi);
-
-      final updateProgress = ref.read(updateReadingProgressProvider);
-      await updateProgress(
-        book: widget.book,
-        cfi: cfi,
-      );
-
-      debugPrint('Progress saved: $cfi');
-    } catch (e) {
-      debugPrint('Error saving progress: $e');
-    }
-  }
-
-  void _updateChapterFromCfi(String cfi) {
-    if (_filteredChapters == null || _filteredChapters!.isEmpty) return;
-
-    try {
-      // Extract chapter anchors from CFI (e.g., [pgepubid00003] from epubcfi(/6/30[pg-footer]!/4/2[pgepubid00003]/10))
-      final anchorRegex = RegExp(r'\[([^\]]+)\]');
-      final matches = anchorRegex.allMatches(cfi);
-
-      for (final match in matches) {
-        final anchor = match.group(1);
-        if (anchor == null || anchor == 'pg-footer' || anchor == 'pg-header' || anchor == 'pg-footer-heading') continue;
-
-        // Find matching chapter
-        final chapterIndex = _filteredChapters!.indexWhere((ch) => ch.Anchor == anchor);
-        if (chapterIndex != -1 && chapterIndex != _currentChapterIndex) {
-          debugPrint('Chapter updated from CFI: $_currentChapterIndex -> $chapterIndex (anchor: $anchor)');
-          setState(() {
-            _currentChapterIndex = chapterIndex;
-          });
-          return;
-        }
-      }
-    } catch (e) {
-      debugPrint('Error extracting chapter from CFI: $e');
-    }
-  }
-
-  Future<void> _loadEpub() async {
+  Future<void> _initializeReader() async {
     try {
       setState(() {
         _isLoading = true;
         _errorMessage = null;
       });
 
-      final file = File(widget.book.filePath);
-      if (!await file.exists()) {
-        throw Exception('EPUB file not found at: ${widget.book.filePath}');
+      _epubController = EpubController();
+
+      await Future.delayed(const Duration(milliseconds: 300));
+
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+
+        await _loadSavedPosition();
       }
-
-      final epubDoc = await EpubDocument.openFile(file);
-
-      if (!mounted) return;
-
-      // Load saved reading position if available
-      final savedCfi = widget.book.currentCfi;
-      debugPrint('Loading EPUB with saved CFI: $savedCfi');
-
-      // Don't load footer CFIs - they cause the chapter indicator to not update
-      // Check for footer-heading anchor, not just pg-footer (which appears in all CFIs)
-      final cfiToLoad = (savedCfi != null && (savedCfi.contains('[pg-footer-heading]') || savedCfi.contains('[pg-header]'))) ? null : savedCfi;
-      if (savedCfi != null && cfiToLoad == null) {
-        debugPrint('Ignoring footer CFI on load: $savedCfi');
-      }
-
-      _epubController = EpubController(
-        document: Future.value(epubDoc),
-        epubCfi: cfiToLoad,
-      );
-
-      _currentCfi = cfiToLoad;
-
-      setState(() {
-        _isLoading = false;
-      });
     } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-        _errorMessage = 'Failed to load EPUB: ${e.toString()}';
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'Failed to load EPUB: ${e.toString()}';
+        });
+      }
     }
   }
-  // coverage:ignore-end
 
-  // coverage:ignore-start
+  Future<void> _loadSavedPosition() async {
+    if (widget.book.lastCfi != null && widget.book.lastCfi!.isNotEmpty) {
+      await Future.delayed(const Duration(milliseconds: 800));
+      if (mounted && _epubController != null) {
+        _epubController!.display(cfi: widget.book.lastCfi!);
+        debugPrint('Loaded saved position: ${widget.book.lastCfi}');
+      }
+    }
+  }
+
+  Future<void> _savePosition(String cfi) async {
+    if (widget.book.id != null && cfi.isNotEmpty) {
+      final updateBook = ref.read(updateBookProvider);
+      final updatedBook = widget.book.copyWith(
+        lastCfi: cfi,
+        lastOpened: DateTime.now(),
+      );
+
+      await updateBook(updatedBook);
+      debugPrint('Saved position: $cfi');
+    }
+  }
+
   @override
   void dispose() {
-    _progressSaveTimer?.cancel();
-    _chapterUpdateTimer?.cancel();
-    _navigationTimer?.cancel();
-    _saveProgress(); // Save one last time before disposing
-    _epubController?.dispose();
+    _progressTracker?.cancel();
+    _appBarController.dispose();
     super.dispose();
   }
-  // coverage:ignore-end
+
+  void _toggleAppBar() {
+    setState(() {
+      _showAppBar = !_showAppBar;
+    });
+    if (_showAppBar) {
+      _appBarController.reverse();
+    } else {
+      _appBarController.forward();
+    }
+  }
+
+  void _applyTheme(Color background, Color foreground) async {
+    _epubController?.updateTheme(
+      theme: EpubTheme.custom(
+        backgroundColor: background,
+        foregroundColor: foreground,
+      ),
+    );
+    // Re-inject customizations after theme change
+    await Future.delayed(const Duration(milliseconds: 100));
+    _injectWebViewCustomizations();
+  }
+
+  Future<void> _takeScreenshot() async {
+    try {
+      final RenderRepaintBoundary? boundary = _screenshotKey.currentContext
+          ?.findRenderObject() as RenderRepaintBoundary?;
+
+      if (boundary == null) return;
+
+      final ui.Image image = await boundary.toImage(pixelRatio: 3.0);
+      final ByteData? byteData = await image.toByteData(
+        format: ui.ImageByteFormat.png,
+      );
+
+      if (byteData == null) return;
+
+      String projectPath;
+      if (Platform.isWindows) {
+        final userHome = Platform.environment['USERPROFILE'] ?? Platform.environment['HOME'];
+        if (userHome != null) {
+          projectPath = '$userHome\\IdeaProjects\\epub_reader\\screenshots';
+        } else {
+          projectPath = '${Directory.systemTemp.path}\\epub_screenshots';
+        }
+      } else {
+        projectPath = '${Directory.systemTemp.path}/epub_screenshots';
+      }
+
+      final Directory screenshotsDir = Directory(projectPath);
+
+      if (!await screenshotsDir.exists()) {
+        await screenshotsDir.create(recursive: true);
+      }
+
+      final String screenName = ref.read(currentScreenProvider);
+      final String timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+      final String filename = '${timestamp}_screenshot_$screenName.png';
+      final String filePath = '${screenshotsDir.path}${Platform.pathSeparator}$filename';
+
+      final File file = File(filePath);
+      await file.writeAsBytes(byteData.buffer.asUint8List());
+    } catch (e) {
+      // Silently fail - don't disrupt user experience
+    }
+  }
+
+  void _hideScrollbars() {
+    _injectWebViewCustomizations();
+  }
+
+  void _injectWebViewCustomizations() {
+    // Disable scrolling in the WebView, but allow F12 to bubble up for screenshots
+    _epubController?.webViewController?.evaluateJavascript(source: '''
+      (function() {
+        // Remove any existing customizations first
+        var existingStyle = document.getElementById('epub-custom-style');
+        if (existingStyle) existingStyle.remove();
+
+        var style = document.createElement('style');
+        style.id = 'epub-custom-style';
+        style.innerHTML = \`
+          * {
+            scrollbar-width: none !important;
+            -ms-overflow-style: none !important;
+            overflow: hidden !important;
+          }
+          *::-webkit-scrollbar {
+            display: none !important;
+            width: 0 !important;
+            height: 0 !important;
+          }
+          html, body {
+            overflow: hidden !important;
+            position: fixed !important;
+            width: 100% !important;
+            height: 100% !important;
+          }
+        \`;
+        document.head.appendChild(style);
+
+        // Remove existing event listeners by cloning
+        if (!window._epubCustomizationsApplied) {
+          window._epubCustomizationsApplied = true;
+
+          // Disable scroll events
+          window.addEventListener('wheel', function(e) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+          }, { passive: false, capture: true });
+
+          window.addEventListener('touchmove', function(e) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+          }, { passive: false, capture: true });
+
+          // Block F5 (refresh), F12 (dev tools), and other developer shortcuts
+          window.addEventListener('keydown', function(e) {
+            if (e.key === 'F5' || e.keyCode === 116 ||
+                e.key === 'F12' || e.keyCode === 123 ||
+                (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'i')) ||
+                (e.ctrlKey && e.shiftKey && (e.key === 'J' || e.key === 'j')) ||
+                (e.ctrlKey && (e.key === 'U' || e.key === 'u'))) {
+              e.preventDefault();
+              e.stopPropagation();
+              return false;
+            }
+          }, true); // Use capture phase to intercept early
+
+          // Prevent context menu which can open dev tools
+          window.addEventListener('contextmenu', function(e) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            return false;
+          }, { passive: false, capture: true });
+        }
+      })();
+    ''');
+  }
 
   @override
   Widget build(BuildContext context) {
-    // Update the current screen provider based on progress bar visibility
+    final themeColors = AppTheme.readingThemes[_selectedTheme]!;
+
+    // Update the current screen provider
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final screenName = _showProgressBar ? 'reader-progress' : 'reader';
-      ref.read(currentScreenProvider.notifier).state = screenName;
+      ref.read(currentScreenProvider.notifier).state = 'reader-${widget.book.title.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-')}';
     });
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.book.title),
-        actions: _epubController != null
-            ? [
-                IconButton(
-                  icon: const Icon(Icons.search),
-                  onPressed: () {
-                    // TODO: Implement search
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Search feature coming soon')),
-                    );
-                  },
-                  tooltip: 'Search in book',
-                ),
-                IconButton(
-                  icon: const Icon(Icons.bookmark_add),
-                  onPressed: _addBookmark,
-                  tooltip: 'Add bookmark',
-                ),
-                Builder(
-                  builder: (BuildContext scaffoldContext) {
-                    return IconButton(
-                      icon: const Icon(Icons.bookmarks),
-                      onPressed: () {
-                        // Update screen name for bookmarks drawer
-                        ref.read(currentScreenProvider.notifier).state = 'reader-bookmarks-drawer';
-                        Scaffold.of(scaffoldContext).openEndDrawer();
-                      },
-                      tooltip: 'View bookmarks',
-                    );
-                  },
-                ),
-                IconButton(
-                  icon: const Icon(Icons.format_size),
-                  onPressed: () {
-                    _showFontSettings(context);
-                  },
-                  tooltip: 'Font settings',
-                ),
-                IconButton(
-                  icon: const Icon(Icons.list),
-                  onPressed: _showTableOfContents,
-                  tooltip: 'Table of contents',
-                ),
-                IconButton(
-                  icon: Icon(
-                    _showProgressBar
-                        ? Icons.linear_scale
-                        : Icons.linear_scale_outlined,
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.arrowRight): () => _epubController?.next(),
+        const SingleActivator(LogicalKeyboardKey.space): () => _epubController?.next(),
+        const SingleActivator(LogicalKeyboardKey.pageDown): () => _epubController?.next(),
+        const SingleActivator(LogicalKeyboardKey.arrowLeft): () => _epubController?.prev(),
+        const SingleActivator(LogicalKeyboardKey.pageUp): () => _epubController?.prev(),
+        const SingleActivator(LogicalKeyboardKey.home): () => _epubController?.moveToFistPage(),
+        const SingleActivator(LogicalKeyboardKey.end): () => _epubController?.moveToLastPage(),
+        const SingleActivator(LogicalKeyboardKey.escape): _toggleAppBar,
+        const SingleActivator(LogicalKeyboardKey.f5): _takeScreenshot,
+      },
+      child: Focus(
+        autofocus: true,
+        onKeyEvent: (node, event) {
+          // Always intercept F5 and F12 to prevent WebView from handling them
+          if (event is KeyDownEvent) {
+            if (event.logicalKey == LogicalKeyboardKey.f5) {
+              _takeScreenshot();
+              return KeyEventResult.handled;
+            }
+            if (event.logicalKey == LogicalKeyboardKey.f12) {
+              _takeScreenshot();
+              return KeyEventResult.handled;
+            }
+          }
+          return KeyEventResult.ignored;
+        },
+        child: RepaintBoundary(
+          key: _screenshotKey,
+          child: Scaffold(
+        backgroundColor: themeColors.background,
+        appBar: _showAppBar
+            ? AppBar(
+                title: Text(
+                  widget.book.title,
+                  style: TextStyle(
+                    color: themeColors.onBackground,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
                   ),
-                  onPressed: () {
-                    setState(() {
-                      _showProgressBar = !_showProgressBar;
-                    });
-                  },
-                  tooltip: _showProgressBar
-                      ? 'Hide progress bar'
-                      : 'Show progress bar',
                 ),
-              ]
-            : [],
+                backgroundColor: themeColors.background,
+                elevation: 0,
+                leading: IconButton(
+                  icon: Icon(Icons.arrow_back, color: themeColors.onBackground),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+                actions: [
+                  IconButton(
+                    icon: Icon(Icons.bookmark_border, color: themeColors.onBackground),
+                    onPressed: () {
+                      Scaffold.of(context).openEndDrawer();
+                    },
+                    tooltip: 'Bookmarks',
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.format_size, color: themeColors.onBackground),
+                    onPressed: () => _showFontSizeDialog(context),
+                    tooltip: 'Font size',
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.palette_outlined, color: themeColors.onBackground),
+                    onPressed: () => _showThemePicker(context),
+                    tooltip: 'Theme',
+                  ),
+                  const SizedBox(width: 8),
+                ],
+              )
+            : null,
+        endDrawer: widget.book.id != null
+            ? Drawer(
+                child: BookmarksDrawer(
+                  bookId: widget.book.id!,
+                  onBookmarkTap: (cfi) {
+                    _epubController?.display(cfi: cfi);
+                    Navigator.of(context).pop();
+                  },
+                ),
+              )
+            : null,
+        body: SafeArea(
+          child: _isLoading
+              ? _buildLoadingView(themeColors)
+              : _errorMessage != null
+                  ? _buildErrorView(themeColors)
+                  : _buildReaderView(themeColors),
+        ),
+          ),
+        ),
       ),
-      endDrawer: widget.book.id != null
-          ? BookmarksDrawer(
-              bookId: widget.book.id!,
-              showProgressBar: _showProgressBar,
-              onBookmarkTap: (cfi) {
-                // Clear any navigation flags when navigating via bookmark
-                _navigationTimer?.cancel();
-                setState(() {
-                  _isUserDraggingSlider = false;
-                  // Don't set targetChapterIndex for bookmarks as they may not be chapter starts
-                });
-
-                _epubController?.gotoEpubCfi(cfi);
-                debugPrint('Bookmark navigation to CFI: $cfi');
-              },
-            )
-          : null,
-      body: _buildBody(),
     );
   }
 
-  Widget _buildBody() {
-    if (_isLoading) {
-      return const Center(
+  Widget _buildLoadingView(ReadingThemeColors themeColors) {
+    return Container(
+      color: themeColors.background,
+      child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('Loading EPUB...'),
+            CircularProgressIndicator(color: themeColors.accent),
+            const SizedBox(height: 24),
+            Text(
+              'Loading EPUB...',
+              style: TextStyle(
+                color: themeColors.onBackground.withValues(alpha: 0.7),
+                fontSize: 16,
+              ),
+            ),
           ],
         ),
-      );
-    }
+      ),
+    );
+  }
 
-    if (_errorMessage != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(
-                Icons.error_outline,
-                size: 64,
-                color: Colors.red,
+  Widget _buildErrorView(ReadingThemeColors themeColors) {
+    return Container(
+      color: themeColors.background,
+      padding: const EdgeInsets.all(24),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.error_outline,
+              size: 64,
+              color: themeColors.onBackground.withValues(alpha: 0.5),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'Error Loading Book',
+              style: TextStyle(
+                color: themeColors.onBackground,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
               ),
-              const SizedBox(height: 16),
-              Text(
-                'Error Loading Book',
-                style: Theme.of(context).textTheme.headlineSmall,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              _errorMessage ?? 'Unknown error',
+              style: TextStyle(
+                color: themeColors.onBackground.withValues(alpha: 0.7),
+                fontSize: 14,
               ),
-              const SizedBox(height: 8),
-              Text(
-                _errorMessage!,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton.icon(
-                onPressed: _loadEpub,
-                icon: const Icon(Icons.refresh),
-                label: const Text('Retry'),
-              ),
-            ],
-          ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: _initializeReader,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Retry'),
+            ),
+          ],
         ),
-      );
-    }
+      ),
+    );
+  }
 
-    if (_epubController == null) {
-      return const Center(
-        child: Text('No EPUB controller available'),
-      );
-    }
-
-    // coverage:ignore-start
+  Widget _buildReaderView(ReadingThemeColors themeColors) {
     return Stack(
       children: [
-        EpubView(
-          controller: _epubController!,
-          onChapterChanged: _onChapterChanged,
-          onDocumentLoaded: _onDocumentLoaded,
-          onDocumentError: _onDocumentError,
-        ),
-        if (_showProgressBar && _filteredChapters != null && _filteredChapters!.isNotEmpty)
-          _buildProgressBar(),
-      ],
-    );
-  }
-
-  Widget _buildProgressBar() {
-    final totalChapters = _filteredChapters?.length ?? 0;
-    if (totalChapters == 0) return const SizedBox.shrink();
-
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return Positioned(
-      left: 0,
-      right: 0,
-      bottom: 0,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeInOut,
-        decoration: BoxDecoration(
-          color: colorScheme.surface.withValues(alpha: 0.98),
-          border: Border(
-            top: BorderSide(
-              color: colorScheme.outline.withValues(alpha: 0.2),
-              width: 1,
+        Column(
+          children: [
+            Expanded(
+              child: GestureDetector(
+                onHorizontalDragEnd: (details) {
+                  if (details.primaryVelocity != null) {
+                    if (details.primaryVelocity! < -500) {
+                      _epubController?.next();
+                    } else if (details.primaryVelocity! > 500) {
+                      _epubController?.prev();
+                    }
+                  }
+                },
+                child: Container(
+                  color: themeColors.background,
+                  child: EpubViewer(
+                    epubController: _epubController!,
+                    epubSource: EpubSource.fromFile(File(widget.book.filePath)),
+                    displaySettings: EpubDisplaySettings(
+                      flow: EpubFlow.paginated,
+                      snap: true,
+                      fontSize: _fontSize.round(),
+                      theme: EpubTheme.custom(
+                        backgroundColor: themeColors.background,
+                        foregroundColor: themeColors.onBackground,
+                      ),
+                    ),
+                    onEpubLoaded: () {
+                      _hideScrollbars();
+                    },
+                  ),
+                ),
+              ),
             ),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: colorScheme.shadow.withValues(alpha: 0.08),
-              blurRadius: 12,
-              offset: const Offset(0, -4),
-            ),
+            _buildFixedProgressBar(themeColors),
           ],
         ),
-        child: SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 12, 8),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            'Chapter ${_currentChapterIndex + 1} of $totalChapters',
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.w600,
-                              color: colorScheme.onSurface,
-                            ),
-                          ),
-                          if (_filteredChapters != null &&
-                              _currentChapterIndex < _filteredChapters!.length)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 2),
-                              child: Text(
-                                _filteredChapters![_currentChapterIndex].Title?.trim() ?? '',
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: colorScheme.onSurfaceVariant,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      icon: Icon(
-                        _showProgressBar ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_up,
-                        size: 24,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _showProgressBar = !_showProgressBar;
-                        });
-                      },
-                      tooltip: _showProgressBar ? 'Hide progress bar' : 'Show progress bar',
-                      color: colorScheme.primary,
-                    ),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    // Bookmark indicators
-                    if (_bookmarks.isNotEmpty) ...buildBookmarkIndicators(totalChapters, colorScheme),
-                    // Slider
-                    SliderTheme(
-                      data: SliderTheme.of(context).copyWith(
-                        trackHeight: 4,
-                        activeTrackColor: colorScheme.primary,
-                        inactiveTrackColor: colorScheme.surfaceContainerHighest,
-                        thumbColor: colorScheme.primary,
-                        overlayColor: colorScheme.primary.withValues(alpha: 0.12),
-                        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10),
-                        overlayShape: const RoundSliderOverlayShape(overlayRadius: 20),
-                        valueIndicatorColor: colorScheme.primaryContainer,
-                        valueIndicatorTextStyle: theme.textTheme.labelSmall?.copyWith(
-                          color: colorScheme.onPrimaryContainer,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        showValueIndicator: ShowValueIndicator.onlyForDiscrete,
-                      ),
-                      child: Slider(
-                        value: _currentChapterIndex.toDouble(),
-                        min: 0,
-                        max: (totalChapters - 1).toDouble(),
-                        divisions: totalChapters > 1 ? totalChapters - 1 : null,
-                        label: 'Chapter ${_currentChapterIndex + 1}',
-                        onChangeStart: (value) {
-                          // Cancel any pending navigation timer
-                          _navigationTimer?.cancel();
-
-                          // Mark that user is actively dragging
-                          setState(() {
-                            _isUserDraggingSlider = true;
-                            _targetChapterIndex = null;
-                          });
-                          debugPrint('Slider drag started - callbacks blocked');
-                        },
-                        onChanged: (value) {
-                          // Update slider position immediately for smooth dragging
-                          final newIndex = value.round();
-                          if (newIndex != _currentChapterIndex &&
-                              newIndex < totalChapters) {
-                            debugPrint('Slider position: $_currentChapterIndex -> $newIndex');
-                            setState(() {
-                              _currentChapterIndex = newIndex;
-                            });
-                          }
-                        },
-                        onChangeEnd: (value) {
-                          // Navigate to chapter only when user finishes dragging
-                          final newIndex = value.round();
-                          debugPrint('Slider drag ended at chapter $newIndex - navigating...');
-
-                          if (newIndex < totalChapters) {
-                            setState(() {
-                              _targetChapterIndex = newIndex;
-                              _currentChapterIndex = newIndex;
-                            });
-
-                            _navigateToChapter(newIndex);
-
-                            // Improved timeout with proper cleanup
-                            _navigationTimer?.cancel();
-                            _navigationTimer = Timer(const Duration(milliseconds: 1500), () {
-                              if (mounted) {
-                                debugPrint('Navigation complete - clearing flags');
-                                setState(() {
-                                  _isUserDraggingSlider = false;
-                                  _targetChapterIndex = null;
-                                });
-                              }
-                            });
-                          } else {
-                            setState(() {
-                              _isUserDraggingSlider = false;
-                              _targetChapterIndex = null;
-                            });
-                          }
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      '${(_currentChapterIndex / (totalChapters - 1).clamp(1, double.infinity) * 100).toStringAsFixed(0)}% complete',
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: colorScheme.primaryContainer.withValues(alpha: 0.5),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        'Ch. ${_currentChapterIndex + 1}/$totalChapters',
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: colorScheme.onPrimaryContainer,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-  // coverage:ignore-end
-
-  // coverage:ignore-start
-  void _navigateToChapter(int chapterIndex) {
-    if (_filteredChapters == null ||
-        chapterIndex < 0 ||
-        chapterIndex >= _filteredChapters!.length) {
-      debugPrint('Navigation aborted: invalid chapter index $chapterIndex');
-      return;
-    }
-
-    final chapter = _filteredChapters![chapterIndex];
-    debugPrint('Navigating to chapter $chapterIndex: "${chapter.Title}" (Anchor: ${chapter.Anchor})');
-    if (chapter.Anchor != null) {
-      // Try using the anchor ID directly as a fragment identifier
-      final anchor = '#${chapter.Anchor}';
-      _epubController?.gotoEpubCfi(anchor);
-      debugPrint('Called gotoEpubCfi with anchor: $anchor');
-    } else {
-      debugPrint('WARNING: Chapter $chapterIndex has no Anchor!');
-    }
-  }
-
-  void _onChapterChanged(dynamic chapterValue) {
-    // Block updates while user is dragging the slider
-    if (_isUserDraggingSlider) {
-      debugPrint('Callback blocked - user is dragging slider');
-      return;
-    }
-
-    // Try to extract chapter information from the callback value
-    if (_chapters != null && _filteredChapters != null && chapterValue != null) {
-      try {
-        // Attempt to access chapter property dynamically
-        final chapter = chapterValue.chapter;
-        if (chapter != null) {
-          // Ignore footer chapters completely
-          if (_isFooterChapter(chapter)) {
-            debugPrint('Ignoring footer chapter change: ${chapter.Title}');
-            return;
-          }
-
-          debugPrint('Chapter anchor from callback: ${chapter.Anchor}');
-          debugPrint('Chapter title from callback: ${chapter.Title}');
-
-          // Find the chapter in our filtered list
-          int chapterIndex = -1;
-
-          // Try to match by anchor first
-          if (chapter.Anchor != null && chapter.Anchor!.isNotEmpty) {
-            chapterIndex = _filteredChapters!.indexWhere(
-              (ch) => ch.Anchor == chapter.Anchor,
-            );
-          }
-
-          // If anchor matching failed, try to match by title as fallback
-          if (chapterIndex == -1 && chapter.Title != null && chapter.Title!.isNotEmpty) {
-            debugPrint('Anchor matching failed, trying title matching for: ${chapter.Title}');
-            chapterIndex = _filteredChapters!.indexWhere(
-              (ch) => ch.Title?.trim() == chapter.Title?.trim(),
-            );
-          }
-
-          if (chapterIndex == -1) {
-            debugPrint('Chapter not found in filtered list: ${chapter.Title} (Anchor: ${chapter.Anchor})');
-            return;
-          }
-
-          // If we're navigating to a specific chapter (from slider)
-          if (_targetChapterIndex != null) {
-            // Clear the navigation state once we reach the target
-            if (chapterIndex == _targetChapterIndex) {
-              debugPrint('Reached target chapter $chapterIndex');
-              _navigationTimer?.cancel();
-              setState(() {
-                _targetChapterIndex = null;
-              });
-            }
-            // Don't update the chapter index as it's already set by the slider
-            return;
-          }
-
-          // Normal chapter change from scrolling
-          if (chapterIndex != _currentChapterIndex) {
-            debugPrint('Chapter changed from scrolling: $_currentChapterIndex -> $chapterIndex');
-            debugPrint('  New chapter: ${_filteredChapters![chapterIndex].Title}');
-            setState(() {
-              _currentChapterIndex = chapterIndex;
-            });
-          }
-        } else {
-          debugPrint('Chapter is null in callback value');
-        }
-      } catch (e) {
-        // Fallback: Just log the chapter change
-        debugPrint('Chapter changed (unable to determine index): $e');
-      }
-    } else {
-      debugPrint('onChapterChanged: chapters or chapterValue is null');
-    }
-  }
-
-  bool _isFooterChapter(EpubChapter? chapter) {
-    if (chapter == null) return false;
-
-    // Check for common footer patterns
-    final anchor = chapter.Anchor?.toLowerCase() ?? '';
-    final title = chapter.Title?.toLowerCase() ?? '';
-
-    return anchor.contains('footer') ||
-           anchor.contains('pg-footer') ||
-           title.contains('project gutenberg') ||
-           title.contains('full project gutenberg license') ||
-           title.contains('end of the project gutenberg') ||
-           title.contains('end of project gutenberg');
-  }
-
-  void _onDocumentLoaded(EpubBook document) {
-    setState(() {
-      _chapters = document.Chapters;
-
-      // Filter out footer chapters for navigation
-      _filteredChapters = _chapters?.where((chapter) => !_isFooterChapter(chapter)).toList();
-    });
-
-    debugPrint('Document loaded with ${_chapters?.length ?? 0} total chapters');
-    debugPrint('Filtered to ${_filteredChapters?.length ?? 0} content chapters (excluded footers)');
-
-    // Debug: Log filtered chapters
-    if (_filteredChapters != null) {
-      for (int i = 0; i < _filteredChapters!.length; i++) {
-        debugPrint('Chapter $i: "${_filteredChapters![i].Title}" -> Anchor: ${_filteredChapters![i].Anchor}');
-      }
-    }
-
-    // Log excluded chapters
-    if (_chapters != null && _filteredChapters != null) {
-      final excluded = _chapters!.where((ch) => _isFooterChapter(ch)).toList();
-      if (excluded.isNotEmpty) {
-        debugPrint('Excluded footer chapters:');
-        for (final ch in excluded) {
-          debugPrint('  - "${ch.Title}" (Anchor: ${ch.Anchor})');
-        }
-      }
-    }
-
-    // Update chapter index from loaded CFI (for persistence)
-    if (_currentCfi != null) {
-      _updateChapterFromCfi(_currentCfi!);
-    }
-
-    _loadBookmarks();
-  }
-
-  Future<void> _loadBookmarks() async {
-    if (widget.book.id == null) return;
-
-    final getBookmarks = ref.read(getBookmarksProvider);
-    final result = await getBookmarks(widget.book.id!);
-
-    result.fold(
-      (failure) {
-        debugPrint('Error loading bookmarks: ${failure.message}');
-      },
-      (bookmarks) {
-        if (mounted) {
-          setState(() {
-            _bookmarks = bookmarks;
-          });
-          debugPrint('Loaded ${bookmarks.length} bookmarks');
-        }
-      },
-    );
-  }
-
-  @visibleForTesting
-  Set<int> getBookmarkChapterIndices() {
-    if (_filteredChapters == null || _bookmarks.isEmpty) {
-      return {};
-    }
-
-    final bookmarkIndices = <int>{};
-    for (final bookmark in _bookmarks) {
-      // Try to find matching chapter by name
-      final chapterIndex = _filteredChapters!.indexWhere(
-        (chapter) {
-          final chapterTitle = chapter.Title?.trim() ?? '';
-          final bookmarkChapter = bookmark.chapterName.trim();
-          return chapterTitle.isNotEmpty &&
-              bookmarkChapter.isNotEmpty &&
-              chapterTitle == bookmarkChapter;
-        },
-      );
-
-      if (chapterIndex != -1) {
-        bookmarkIndices.add(chapterIndex);
-      }
-    }
-
-    return bookmarkIndices;
-  }
-
-  @visibleForTesting
-  List<Widget> buildBookmarkIndicators(int totalChapters, ColorScheme colorScheme) {
-    final bookmarkIndices = getBookmarkChapterIndices();
-    if (bookmarkIndices.isEmpty || totalChapters <= 1) {
-      return [];
-    }
-
-    return bookmarkIndices.map((chapterIndex) {
-      // Calculate position as percentage (0.0 to 1.0)
-      final position = chapterIndex / (totalChapters - 1);
-
-      return LayoutBuilder(
-        builder: (context, constraints) {
-          // Account for slider thumb radius (10px on each side)
-          const thumbRadius = 10.0;
-          const indicatorSize = 8.0;
-          const tapTargetSize = 24.0; // Minimum touch target size
-          final availableWidth = constraints.maxWidth - (thumbRadius * 2);
-          final leftPosition = (availableWidth * position) + thumbRadius - (tapTargetSize / 2);
-
-          return Positioned(
-            left: leftPosition,
-            child: GestureDetector(
-              onTap: () {
-                debugPrint('Bookmark indicator tapped for chapter $chapterIndex');
-
-                // Clear navigation flags
-                _navigationTimer?.cancel();
-                setState(() {
-                  _isUserDraggingSlider = false;
-                  _targetChapterIndex = chapterIndex;
-                  _currentChapterIndex = chapterIndex;
-                });
-
-                // Navigate to the chapter
-                _navigateToChapter(chapterIndex);
-
-                // Set timeout to clear navigation flags
-                _navigationTimer = Timer(const Duration(milliseconds: 1500), () {
-                  if (mounted) {
-                    setState(() {
-                      _targetChapterIndex = null;
-                    });
-                  }
-                });
-              },
-              child: Container(
-                width: tapTargetSize,
-                height: tapTargetSize,
-                alignment: Alignment.center,
-                child: Container(
-                  width: indicatorSize,
-                  height: indicatorSize,
-                  decoration: BoxDecoration(
-                    color: colorScheme.primary,
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: colorScheme.surface,
-                      width: 2,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: colorScheme.primary.withValues(alpha: 0.4),
-                        blurRadius: 4,
-                        spreadRadius: 1,
-                      ),
-                      BoxShadow(
-                        color: colorScheme.shadow.withValues(alpha: 0.2),
-                        blurRadius: 2,
-                        offset: const Offset(0, 1),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          );
-        },
-      );
-    }).toList();
-  }
-  // coverage:ignore-end
-
-  void _onDocumentError(Exception? error) {
-    debugPrint('Document error: $error');
-    setState(() {
-      _errorMessage = 'Error loading document: ${error.toString()}';
-      _isLoading = false;
-    });
-  }
-
-  Future<void> _addBookmark() async {
-    if (_epubController == null || widget.book.id == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Unable to add bookmark')),
-      );
-      return;
-    }
-
-    try {
-      final cfi = _epubController!.generateEpubCfi();
-      if (cfi == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Unable to get current position')),
-        );
-        return;
-      }
-
-      // Show dialog to add note
-      // Update screen name for add bookmark dialog
-      ref.read(currentScreenProvider.notifier).state = 'reader-add-bookmark';
-
-      final note = await showDialog<String>(
-        context: context,
-        builder: (context) => const BookmarkNoteDialog(),
-      );
-
-      // Reset screen name when dialog is closed
-      if (mounted) {
-        final screenName = _showProgressBar ? 'reader-progress' : 'reader';
-        ref.read(currentScreenProvider.notifier).state = screenName;
-      }
-
-      if (note == null) return; // User cancelled
-
-      final addBookmark = ref.read(addBookmarkProvider);
-      final result = await addBookmark(
-        bookId: widget.book.id!,
-        cfi: cfi,
-        note: note.isEmpty ? null : note,
-      );
-
-      if (!mounted) return;
-
-      result.fold(
-        (failure) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error adding bookmark: ${failure.message}')),
-          );
-        },
-        (id) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Bookmark added successfully'),
-              duration: Duration(seconds: 2),
-            ),
-          );
-          // Reload bookmarks to update indicators
-          _loadBookmarks();
-        },
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error adding bookmark: $e')),
-      );
-    }
-  }
-
-  void _showTableOfContents() {
-    if (_filteredChapters == null || _filteredChapters!.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No table of contents available')),
-      );
-      return;
-    }
-
-    // Update screen name for table of contents
-    ref.read(currentScreenProvider.notifier).state = 'reader-table-of-contents';
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.7,
-        minChildSize: 0.5,
-        maxChildSize: 0.9,
-        expand: false,
-        builder: (context, scrollController) => Container(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Table of Contents',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                  ],
-                ),
-              ),
-              const Divider(),
-              Expanded(
-                child: ListView.builder(
-                  controller: scrollController,
-                  itemCount: _filteredChapters!.length,
-                  itemBuilder: (context, index) {
-                    final chapter = _filteredChapters![index];
-                    return _buildChapterTile(chapter, 0, index);
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    ).then((_) {
-      // Reset screen name when bottom sheet is closed
-      if (mounted) {
-        final screenName = _showProgressBar ? 'reader-progress' : 'reader';
-        ref.read(currentScreenProvider.notifier).state = screenName;
-      }
-    });
-  }
-
-  Widget _buildChapterTile(EpubChapter chapter, int level, int index) {
-    return Column(
-      children: [
-        ListTile(
-          contentPadding: EdgeInsets.only(left: 16.0 + (level * 16.0)),
-          title: Text(
-            chapter.Title?.trim() ?? 'Chapter ${index + 1}',
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-          onTap: () {
-            if (chapter.Anchor != null && _filteredChapters != null) {
-              // Find the chapter index in filtered chapters
-              final chapterIndex = _filteredChapters!.indexWhere(
-                (ch) => ch.Anchor == chapter.Anchor,
-              );
-
-              if (chapterIndex != -1) {
-                // Clear any navigation flags and update state
-                _navigationTimer?.cancel();
-                setState(() {
-                  _isUserDraggingSlider = false;
-                  _targetChapterIndex = chapterIndex;
-                  _currentChapterIndex = chapterIndex;
-                });
-
-                // Navigate to the chapter
-                _epubController?.gotoEpubCfi(chapter.Anchor!);
-                debugPrint('TOC navigation to chapter $chapterIndex: ${chapter.Title}');
-
-                // Set timeout to clear navigation flags
-                _navigationTimer = Timer(const Duration(milliseconds: 1500), () {
-                  if (mounted) {
-                    setState(() {
-                      _targetChapterIndex = null;
-                    });
-                  }
-                });
-              }
-
-              Navigator.pop(context);
-            }
-          },
-        ),
-        if (chapter.SubChapters != null && chapter.SubChapters!.isNotEmpty)
-          ...chapter.SubChapters!.asMap().entries.map(
-                (entry) => _buildChapterTile(entry.value, level + 1, entry.key),
-              ),
       ],
     );
   }
 
-  void _showFontSettings(BuildContext context) {
-    // Update screen name for font settings
-    ref.read(currentScreenProvider.notifier).state = 'reader-font-settings';
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setModalState) => Container(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildFixedProgressBar(ReadingThemeColors themeColors) {
+    return Container(
+      decoration: BoxDecoration(
+        color: themeColors.background,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 8,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
             children: [
-              Text(
-                'Font Settings',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 16),
-              const Text('Font size'),
-              Slider(
-                value: _fontSize,
-                min: 12,
-                max: 48,
-                divisions: 36,
-                label: _fontSize.round().toString(),
-                onChanged: (value) {
-                  setModalState(() {
-                    _fontSize = value;
-                  });
-                  setState(() {
-                    _fontSize = value;
-                  });
-                  // TODO: Apply font size to epub_view controller
+              IconButton(
+                icon: Icon(
+                  Icons.arrow_back_ios_rounded,
+                  color: themeColors.onBackground,
+                  size: 20,
+                ),
+                onPressed: () {
+                  _epubController?.prev();
                 },
+                tooltip: 'Previous page (←)',
               ),
-              Text(
-                'Current size: ${_fontSize.round()}pt',
-                style: Theme.of(context).textTheme.bodySmall,
+              Expanded(
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.menu_book,
+                          size: 16,
+                          color: themeColors.onBackground.withValues(alpha: 0.6),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          widget.book.title,
+                          style: TextStyle(
+                            color: themeColors.onBackground.withValues(alpha: 0.8),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 16),
-              const Text('Reading theme'),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
+              IconButton(
+                icon: Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  color: themeColors.onBackground,
+                  size: 20,
+                ),
+                onPressed: () {
+                  _epubController?.next();
+                },
+                tooltip: 'Next page (→)',
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showFontSizeDialog(BuildContext context) async {
+    final themeColors = AppTheme.readingThemes[_selectedTheme]!;
+    final initialFontSize = _fontSize;
+
+    // Get and save current position before opening dialog
+    final location = await _epubController?.getCurrentLocation();
+    final savedCfi = location?.startCfi;
+
+    await showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: themeColors.background,
+          title: Text(
+            'Font Size',
+            style: TextStyle(color: themeColors.onBackground),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  ChoiceChip(
-                    label: const Text('Light'),
-                    selected: _selectedTheme == 'light',
-                    onSelected: (selected) {
-                      if (selected) {
-                        setModalState(() {
-                          _selectedTheme = 'light';
-                        });
-                        setState(() {
-                          _selectedTheme = 'light';
-                        });
-                        // TODO: Apply theme to epub_view controller
-                      }
-                    },
-                  ),
-                  ChoiceChip(
-                    label: const Text('Dark'),
-                    selected: _selectedTheme == 'dark',
-                    onSelected: (selected) {
-                      if (selected) {
-                        setModalState(() {
-                          _selectedTheme = 'dark';
-                        });
-                        setState(() {
-                          _selectedTheme = 'dark';
-                        });
-                        // TODO: Apply theme to epub_view controller
-                      }
-                    },
-                  ),
-                  ChoiceChip(
-                    label: const Text('Sepia'),
-                    selected: _selectedTheme == 'sepia',
-                    onSelected: (selected) {
-                      if (selected) {
-                        setModalState(() {
-                          _selectedTheme = 'sepia';
-                        });
-                        setState(() {
-                          _selectedTheme = 'sepia';
-                        });
-                        // TODO: Apply theme to epub_view controller
-                      }
-                    },
+                  Text(
+                    'Aa',
+                    style: TextStyle(
+                      fontSize: _fontSize,
+                      color: themeColors.onBackground,
+                    ),
                   ),
                 ],
               ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Done'),
-                ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Text(
+                    'A',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: themeColors.onBackground.withValues(alpha: 0.6),
+                    ),
+                  ),
+                  Expanded(
+                    child: Slider(
+                      value: _fontSize,
+                      min: 12,
+                      max: 32,
+                      divisions: 20,
+                      activeColor: themeColors.accent,
+                      label: _fontSize.round().toString(),
+                      onChanged: (value) {
+                        setDialogState(() {
+                          _fontSize = value;
+                        });
+                        setState(() {
+                          _fontSize = value;
+                        });
+                      },
+                    ),
+                  ),
+                  Text(
+                    'A',
+                    style: TextStyle(
+                      fontSize: 24,
+                      color: themeColors.onBackground.withValues(alpha: 0.6),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                'Done',
+                style: TextStyle(color: themeColors.accent),
+              ),
+            ),
+          ],
         ),
       ),
-    ).then((_) {
-      // Reset screen name when bottom sheet is closed
-      if (mounted) {
-        final screenName = _showProgressBar ? 'reader-progress' : 'reader';
-        ref.read(currentScreenProvider.notifier).state = screenName;
-      }
-    });
-  }
-}
+    );
 
-class BookmarkNoteDialog extends StatefulWidget {
-  const BookmarkNoteDialog({super.key});
-
-  @override
-  State<BookmarkNoteDialog> createState() => _BookmarkNoteDialogState();
-}
-
-class _BookmarkNoteDialogState extends State<BookmarkNoteDialog> {
-  final _noteController = TextEditingController();
-
-  @override
-  void dispose() {
-    _noteController.dispose();
-    super.dispose();
+    // Apply font size change and restore position after dialog closes
+    if (initialFontSize != _fontSize && savedCfi != null && savedCfi.isNotEmpty) {
+      await _epubController?.setFontSize(_fontSize);
+      await Future.delayed(const Duration(milliseconds: 300));
+      await _epubController?.display(cfi: savedCfi);
+      // Re-inject customizations after font size change
+      await Future.delayed(const Duration(milliseconds: 100));
+      _injectWebViewCustomizations();
+    }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Add Bookmark'),
-      content: TextField(
-        controller: _noteController,
-        decoration: const InputDecoration(
-          labelText: 'Note (optional)',
-          hintText: 'Add a note to remember this bookmark...',
+  void _showThemePicker(BuildContext context) {
+    final themeColors = AppTheme.readingThemes[_selectedTheme]!;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(24),
+            topRight: Radius.circular(24),
+          ),
         ),
-        maxLines: 3,
-        autofocus: true,
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Reading Theme',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            const SizedBox(height: 24),
+            Wrap(
+              spacing: 16,
+              runSpacing: 16,
+              children: AppTheme.readingThemes.entries.map((entry) {
+                return _buildThemeOption(
+                  entry.value.name,
+                  entry.key,
+                  entry.value.background,
+                  entry.value.onBackground,
+                  entry.value.accent,
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        ElevatedButton(
-          onPressed: () => Navigator.pop(context, _noteController.text),
-          child: const Text('Add'),
-        ),
-      ],
+    );
+  }
+
+  Widget _buildThemeOption(String label, String theme, Color bg, Color fg, Color accent) {
+    final isSelected = _selectedTheme == theme;
+
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _selectedTheme = theme;
+        });
+        _applyTheme(bg, fg);
+        Navigator.pop(context);
+      },
+      child: Column(
+        children: [
+          Container(
+            width: 90,
+            height: 90,
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: isSelected ? accent : Colors.grey.shade300,
+                width: isSelected ? 3 : 1.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.08),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: Stack(
+              children: [
+                Center(
+                  child: Text(
+                    'Aa',
+                    style: TextStyle(
+                      fontSize: 32,
+                      color: fg,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                if (isSelected)
+                  Positioned(
+                    top: 6,
+                    right: 6,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: accent,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.check,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+              color: isSelected ? Theme.of(context).primaryColor : Colors.grey.shade700,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

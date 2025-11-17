@@ -36,7 +36,6 @@ void main() {
         home: Scaffold(
           endDrawer: BookmarksDrawer(
             bookId: bookId,
-            showProgressBar: true,
             onBookmarkTap: onBookmarkTap ?? (_) {},
           ),
         ),

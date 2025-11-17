@@ -71,18 +71,6 @@ class BookListItem extends StatelessWidget {
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ],
-                    if (book.readingProgress > 0) ...[
-                      const SizedBox(height: 8),
-                      LinearProgressIndicator(
-                        value: book.readingProgress,
-                        backgroundColor: Colors.grey[300],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${(book.readingProgress * 100).toInt()}% complete',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
                   ],
                 ),
               ),
@@ -102,40 +90,45 @@ class BookListItem extends StatelessWidget {
       endActionPane: ActionPane(
         motion: const ScrollMotion(),
         children: [
-          SlidableAction(
-            onPressed: (slidableContext) async {
-              final confirmed = await showDialog<bool>(
-                context: slidableContext,
-                builder: (dialogContext) => AlertDialog(
-                  title: const Text('Delete Book'),
-                  content: Text(
-                    'Are you sure you want to delete "${book.title}"? This will also delete the EPUB file and cannot be undone.',
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(dialogContext, false),
-                      child: const Text('Cancel'),
-                    ),
-                    ElevatedButton(
-                      onPressed: () => Navigator.pop(dialogContext, true),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        foregroundColor: Colors.white,
+          Builder(
+            builder: (builderContext) {
+              final colorScheme = Theme.of(builderContext).colorScheme;
+              return SlidableAction(
+                onPressed: (slidableContext) async {
+                  final confirmed = await showDialog<bool>(
+                    context: slidableContext,
+                    builder: (dialogContext) => AlertDialog(
+                      title: const Text('Delete Book'),
+                      content: Text(
+                        'Are you sure you want to delete "${book.title}"? This will also delete the EPUB file and cannot be undone.',
                       ),
-                      child: const Text('Delete'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(dialogContext, false),
+                          child: const Text('Cancel'),
+                        ),
+                        ElevatedButton(
+                          onPressed: () => Navigator.pop(dialogContext, true),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Theme.of(dialogContext).colorScheme.error,
+                            foregroundColor: Theme.of(dialogContext).colorScheme.onError,
+                          ),
+                          child: const Text('Delete'),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              );
+                  );
 
-              if (confirmed == true) {
-                onDelete?.call();
-              }
+                  if (confirmed == true) {
+                    onDelete?.call();
+                  }
+                },
+                backgroundColor: colorScheme.error,
+                foregroundColor: colorScheme.onError,
+                icon: Icons.delete,
+                label: 'Delete',
+              );
             },
-            backgroundColor: Colors.red,
-            foregroundColor: Colors.white,
-            icon: Icons.delete,
-            label: 'Delete',
           ),
         ],
       ),
@@ -166,7 +159,7 @@ class BookListItem extends StatelessWidget {
       width: 60,
       height: 90,
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(12),
         child: coverWidget,
       ),
     );

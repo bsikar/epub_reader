@@ -36,62 +36,61 @@ class BookDetailsScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Cover Image Section
-            _buildCoverSection(theme),
+      body: ScrollConfiguration(
+        behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Cover Image Section
+              _buildCoverSection(theme),
 
-            // Book Information
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Title
-                  Text(
-                    book.title,
-                    style: theme.textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-
-                  // Author
-                  Text(
-                    'by ${book.author}',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Reading Progress Card
-                  _buildReadingProgressCard(theme),
-                  const SizedBox(height: 24),
-
-                  // Metadata Section
-                  _buildMetadataSection(theme),
-                  const SizedBox(height: 24),
-
-                  // Description
-                  if (book.description != null && book.description!.isNotEmpty) ...[
-                    _buildSectionTitle(theme, 'Description'),
-                    const SizedBox(height: 8),
+              // Book Information
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Title
                     Text(
-                      book.description!,
-                      style: theme.textTheme.bodyMedium,
+                      book.title,
+                      style: theme.textTheme.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // Author
+                    Text(
+                      'by ${book.author}',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
                     ),
                     const SizedBox(height: 24),
-                  ],
 
-                  // Action Buttons
-                  _buildActionButtons(context),
-                ],
+                    // Metadata Section
+                    _buildMetadataSection(theme),
+                    const SizedBox(height: 24),
+
+                    // Description
+                    if (book.description != null && book.description!.isNotEmpty) ...[
+                      _buildSectionTitle(theme, 'Description'),
+                      const SizedBox(height: 8),
+                      Text(
+                        book.description!,
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                      const SizedBox(height: 24),
+                    ],
+
+                    // Action Buttons
+                    _buildActionButtons(context),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
       floatingActionButton: _buildContinueReadingFAB(context),
@@ -103,7 +102,7 @@ class BookDetailsScreen extends ConsumerWidget {
       width: double.infinity,
       height: 300,
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceVariant,
+        color: theme.colorScheme.surfaceContainerHighest,
       ),
       child: book.coverPath != null && File(book.coverPath!).existsSync()
           ? Image.file(
@@ -113,88 +112,11 @@ class BookDetailsScreen extends ConsumerWidget {
           : Icon(
               Icons.menu_book,
               size: 120,
-              color: theme.colorScheme.onSurfaceVariant.withOpacity(0.3),
+              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
             ),
     );
   }
 
-  Widget _buildReadingProgressCard(ThemeData theme) {
-    return Card(
-      elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Reading Progress',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  '${(book.readingProgress * 100).toStringAsFixed(0)}%',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: theme.colorScheme.primary,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            LinearProgressIndicator(
-              value: book.readingProgress,
-              minHeight: 8,
-              borderRadius: BorderRadius.circular(4),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildStatItem(
-                    theme,
-                    'Current Page',
-                    book.currentPage > 0 ? book.currentPage.toString() : 'Not started',
-                  ),
-                ),
-                Expanded(
-                  child: _buildStatItem(
-                    theme,
-                    'Total Pages',
-                    book.totalPages > 0 ? book.totalPages.toString() : 'Unknown',
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatItem(ThemeData theme, String label, String value) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: theme.textTheme.titleSmall?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
-    );
-  }
 
   Widget _buildMetadataSection(ThemeData theme) {
     return Column(
@@ -283,8 +205,8 @@ class BookDetailsScreen extends ConsumerWidget {
   Widget _buildContinueReadingFAB(BuildContext context) {
     return FloatingActionButton.extended(
       onPressed: () => _openReader(context),
-      icon: Icon(book.readingProgress > 0 ? Icons.book : Icons.play_arrow),
-      label: Text(book.readingProgress > 0 ? 'Continue Reading' : 'Start Reading'),
+      icon: const Icon(Icons.book),
+      label: const Text('Read'),
     );
   }
 

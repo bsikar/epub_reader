@@ -16,7 +16,6 @@ void main() {
       author: 'Test Author',
       filePath: '/test/path/book.epub',
       addedDate: DateTime(2025, 1, 1),
-      readingProgress: 0.5,
       lastOpened: DateTime(2025, 1, 10),
     );
   });

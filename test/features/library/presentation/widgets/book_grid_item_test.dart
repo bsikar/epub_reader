@@ -15,7 +15,6 @@ void main() {
       author: 'Test Author',
       filePath: '/test/path/book.epub',
       addedDate: DateTime(2025, 1, 1),
-      readingProgress: 0.5,
     );
   });
 
@@ -65,7 +64,13 @@ void main() {
 
     testWidgets('should not display progress when 0', (tester) async {
       // Arrange
-      final bookNoProgress = testBook.copyWith(readingProgress: 0.0);
+      final bookNoProgress = Book(
+        id: 2,
+        title: 'No Progress Book',
+        author: 'Author',
+        filePath: '/test/noProgress.epub',
+        addedDate: DateTime(2025, 1, 1),
+      );
 
       // Act
       await tester.pumpWidget(createWidgetUnderTest(book: bookNoProgress));
@@ -77,7 +82,13 @@ void main() {
 
     testWidgets('should display 100% when progress is 1.0', (tester) async {
       // Arrange
-      final completeBook = testBook.copyWith(readingProgress: 1.0);
+      final completeBook = Book(
+        id: 3,
+        title: 'Complete Book',
+        author: 'Author',
+        filePath: '/test/complete.epub',
+        addedDate: DateTime(2025, 1, 1),
+      );
 
       // Act
       await tester.pumpWidget(createWidgetUnderTest(book: completeBook));

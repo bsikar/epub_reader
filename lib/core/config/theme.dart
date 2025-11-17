@@ -27,16 +27,46 @@ class AppTheme {
   // Reading Theme Colors
   static const Map<String, ReadingThemeColors> readingThemes = {
     'light': ReadingThemeColors(
+      name: 'Light',
       background: Color(0xFFFFFFFF),
-      onBackground: Color(0xFF000000),
+      onBackground: Color(0xFF1A1A1A),
+      accent: Color(0xFF6750A4),
     ),
     'dark': ReadingThemeColors(
-      background: Color(0xFF000000),
-      onBackground: Color(0xFFE0E0E0),
+      name: 'Dark',
+      background: Color(0xFF1A1A1A),
+      onBackground: Color(0xFFE8E8E8),
+      accent: Color(0xFF8B7FD9),
     ),
     'sepia': ReadingThemeColors(
+      name: 'Sepia',
       background: Color(0xFFF4ECD8),
       onBackground: Color(0xFF4A4033),
+      accent: Color(0xFF8B6914),
+    ),
+    'night': ReadingThemeColors(
+      name: 'Night',
+      background: Color(0xFF0D1117),
+      onBackground: Color(0xFFC9D1D9),
+      accent: Color(0xFF58A6FF),
+    ),
+    'paper': ReadingThemeColors(
+      name: 'Paper',
+      background: Color(0xFFFFFDF7),
+      onBackground: Color(0xFF2C2C2C),
+      accent: Color(0xFF8B6914),
+    ),
+    'forest': ReadingThemeColors(
+      name: 'Forest',
+      background: Color(0xFFE8F5E9),
+      onBackground: Color(0xFF1B5E20),
+      accent: Color(0xFF388E3C),
+    ),
+    'ocean': ReadingThemeColors(
+      name: 'Ocean',
+      background: Color(0xFFE3F2FD),
+      onBackground: Color(0xFF0D47A1),
+      accent: Color(0xFF1976D2),
     ),
   };
 
@@ -128,11 +158,15 @@ class AppTheme {
 }
 
 class ReadingThemeColors {
+  final String name;
   final Color background;
   final Color onBackground;
+  final Color accent;
 
   const ReadingThemeColors({
+    required this.name,
     required this.background,
     required this.onBackground,
+    required this.accent,
   });
 }

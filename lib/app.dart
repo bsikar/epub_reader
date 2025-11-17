@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:epub_reader/core/config/theme.dart';
 import 'package:epub_reader/features/library/presentation/screens/library_screen.dart';
@@ -8,6 +7,27 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+
+// Custom ScrollBehavior to hide scrollbars
+class NoScrollbarBehavior extends ScrollBehavior {
+  @override
+  Widget buildScrollbar(BuildContext context, Widget child, ScrollableDetails details) {
+    // Return the child without wrapping in a Scrollbar
+    return child;
+  }
+
+  @override
+  Widget buildOverscrollIndicator(BuildContext context, Widget child, ScrollableDetails details) {
+    // Return the child without overscroll indicators
+    return child;
+  }
+
+  @override
+  ScrollPhysics getScrollPhysics(BuildContext context) {
+    // Use platform-specific physics but without scrollbars
+    return const ScrollPhysics();
+  }
+}
 
 // Provider to track the current screen name
 final currentScreenProvider = StateProvider<String>((ref) => 'library');
@@ -67,7 +87,7 @@ class _EPUBReaderAppState extends ConsumerState<EPUBReaderApp> {
 
       final File file = File(filePath);
       await file.writeAsBytes(byteData.buffer.asUint8List());
-    } catch (e, stackTrace) {
+    } catch (e) {
       // Silently fail - don't disrupt user experience
     }
   }
@@ -76,6 +96,7 @@ class _EPUBReaderAppState extends ConsumerState<EPUBReaderApp> {
   Widget build(BuildContext context) {
     return CallbackShortcuts(
       bindings: {
+        const SingleActivator(LogicalKeyboardKey.f5): _takeScreenshot,
         const SingleActivator(LogicalKeyboardKey.f12): _takeScreenshot,
         const SingleActivator(
           LogicalKeyboardKey.keyS,
@@ -94,6 +115,7 @@ class _EPUBReaderAppState extends ConsumerState<EPUBReaderApp> {
             theme: AppTheme.lightTheme(),
             darkTheme: AppTheme.darkTheme(),
             themeMode: ThemeMode.system,
+            scrollBehavior: NoScrollbarBehavior(),
             onGenerateRoute: (settings) {
               // This will never be called since we're using home, but kept for future routing
               return null;

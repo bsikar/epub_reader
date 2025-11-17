@@ -1,9 +1,7 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import '../helpers/test_app.dart';
 import '../helpers/test_actions.dart';
-import '../helpers/test_data.dart';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -152,19 +150,16 @@ void main() {
       final unreadBook = await TestApp.addTestBook(
         title: 'Unread Book',
         author: 'Author',
-        readingProgress: 0.0,
       );
 
       final inProgressBook = await TestApp.addTestBook(
         title: 'In Progress Book',
         author: 'Author',
-        readingProgress: 0.5,
       );
 
       final completedBook = await TestApp.addTestBook(
         title: 'Completed Book',
         author: 'Author',
-        readingProgress: 1.0,
       );
 
       await tester.pumpWidget(await TestApp.createTestApp());
@@ -178,9 +173,6 @@ void main() {
       final inProgress = allBooks.firstWhere((b) => b.id == inProgressBook);
       final completed = allBooks.firstWhere((b) => b.id == completedBook);
 
-      expect(unread.readingProgress, 0.0);
-      expect(inProgress.readingProgress, 0.5);
-      expect(completed.readingProgress, 1.0);
     });
 
     testWidgets('Library persists across app restarts', (tester) async {

@@ -1,8 +1,5 @@
-import 'dart:io';
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:path/path.dart' as p;
 
 part 'app_database.g.dart';
 
@@ -19,10 +16,7 @@ class Books extends Table {
   TextColumn get description => text().nullable()();
   DateTimeColumn get addedDate => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get lastOpened => dateTime().nullable()();
-  RealColumn get readingProgress => real().withDefault(const Constant(0.0))();
-  IntColumn get currentPage => integer().withDefault(const Constant(0))();
-  IntColumn get totalPages => integer().withDefault(const Constant(0))();
-  TextColumn get currentCfi => text().nullable()();
+  TextColumn get lastCfi => text().nullable()();
 }
 
 // Bookmarks Table
@@ -132,7 +126,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -160,7 +154,10 @@ class AppDatabase extends _$AppDatabase {
           );
         },
         onUpgrade: (Migrator m, int from, int to) async {
-          // Future migrations will go here
+          if (from < 2) {
+            // Add lastCfi column to books table
+            await m.addColumn(books, books.lastCfi);
+          }
         },
       );
 

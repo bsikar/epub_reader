@@ -16,10 +16,7 @@ extension BookModelX on Book {
       description: drift.Value(description),
       addedDate: drift.Value(addedDate),
       lastOpened: drift.Value(lastOpened),
-      readingProgress: drift.Value(readingProgress),
-      currentPage: drift.Value(currentPage),
-      totalPages: drift.Value(totalPages),
-      currentCfi: drift.Value(currentCfi),
+      lastCfi: drift.Value(lastCfi),
     );
   }
 
@@ -36,10 +33,7 @@ extension BookModelX on Book {
       description: description,
       addedDate: addedDate,
       lastOpened: lastOpened,
-      readingProgress: readingProgress,
-      currentPage: currentPage,
-      totalPages: totalPages,
-      currentCfi: currentCfi,
+      lastCfi: lastCfi,
     );
   }
 }
@@ -58,10 +52,7 @@ extension BookEntityX on db.Book {
       description: description,
       addedDate: addedDate,
       lastOpened: lastOpened,
-      readingProgress: readingProgress,
-      currentPage: currentPage,
-      totalPages: totalPages,
-      currentCfi: currentCfi,
+      lastCfi: lastCfi,
     );
   }
 }

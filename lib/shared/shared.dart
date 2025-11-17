@@ -4,6 +4,7 @@
 /// ```dart
 /// import 'package:epub_reader/shared/shared.dart';
 /// ```
+library;
 
 export 'services/services.dart';
 export 'widgets/widgets.dart';

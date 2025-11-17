@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import '../helpers/test_app.dart';
@@ -23,7 +22,6 @@ void main() {
         await TestApp.addTestBook(
           title: TestData.bookTitles[i],
           author: TestData.authors[i],
-          readingProgress: i * 0.3,
         );
       }
     });
@@ -48,7 +46,6 @@ void main() {
       for (int i = 0; i < 3; i++) {
         final book = allBooks.firstWhere((b) => b.title == TestData.bookTitles[i]);
         expect(book.author, TestData.authors[i]);
-        expect(book.readingProgress, i * 0.3);
       }
     });
 
@@ -77,8 +74,6 @@ void main() {
 
       expect(firstBook.title, isNotEmpty);
       expect(firstBook.author, isNotEmpty);
-      expect(firstBook.readingProgress, greaterThanOrEqualTo(0.0));
-      expect(firstBook.readingProgress, lessThanOrEqualTo(1.0));
     });
 
     testWidgets('Navigation state preserved in database', (tester) async {
@@ -88,11 +83,8 @@ void main() {
 
       // Get book with progress
       final allBooks = await TestApp.database.getAllBooks();
-      final bookWithProgress = allBooks.firstWhere((b) => b.readingProgress > 0);
 
       // Assert - Reading progress is preserved
-      expect(bookWithProgress.readingProgress, greaterThan(0.0));
-      // currentCfi may be null if not set during initial import
     });
 
     testWidgets('Multiple books maintain separate states', (tester) async {
@@ -105,9 +97,6 @@ void main() {
       expect(allBooks.length, 3);
 
       // Each book should have different progress
-      expect(allBooks[0].readingProgress, 0.0);
-      expect(allBooks[1].readingProgress, 0.3);
-      expect(allBooks[2].readingProgress, 0.6);
     });
   });
 }

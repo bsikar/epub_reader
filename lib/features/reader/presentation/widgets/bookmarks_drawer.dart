@@ -9,13 +9,11 @@ import 'package:intl/intl.dart';
 
 class BookmarksDrawer extends ConsumerWidget {
   final int bookId;
-  final bool showProgressBar;
   final Function(String cfi) onBookmarkTap;
 
   const BookmarksDrawer({
     super.key,
     required this.bookId,
-    required this.showProgressBar,
     required this.onBookmarkTap,
   });
 
@@ -166,8 +164,7 @@ class BookmarksDrawer extends ConsumerWidget {
           Navigator.pop(context);
           // Reset screen name when drawer is closed
           if (context.mounted) {
-            final screenName = showProgressBar ? 'reader-progress' : 'reader';
-            ref.read(currentScreenProvider.notifier).state = screenName;
+            ref.read(currentScreenProvider.notifier).state = 'reader';
           }
         },
         child: Padding(

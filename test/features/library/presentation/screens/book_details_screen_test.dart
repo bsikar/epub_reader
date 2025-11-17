@@ -46,9 +46,6 @@ void main() {
       description: 'This is a test book description.',
       addedDate: DateTime(2025, 1, 1),
       lastOpened: DateTime(2025, 1, 10),
-      readingProgress: 0.5,
-      currentPage: 50,
-      totalPages: 100,
     );
   });
 
@@ -205,7 +202,13 @@ void main() {
 
     testWidgets('should show "Start Reading" FAB when progress = 0', (tester) async {
       // Arrange
-      final bookNotStarted = testBook.copyWith(readingProgress: 0.0);
+      final bookNotStarted = Book(
+        id: 2,
+        title: 'New Book',
+        author: 'New Author',
+        filePath: '/test/new.epub',
+        addedDate: DateTime(2025, 1, 1),
+      );
 
       // Act
       await tester.pumpWidget(createWidgetUnderTest(bookNotStarted));
@@ -315,31 +318,6 @@ void main() {
       // Assert
       expect(find.text('Added'), findsOneWidget);
       expect(find.text('Last Opened'), findsOneWidget);
-    });
-
-    testWidgets('should display "Not started" when currentPage is 0', (tester) async {
-      // Arrange
-      final bookNotStarted = testBook.copyWith(
-        currentPage: 0,
-        readingProgress: 0.0,
-      );
-
-      // Act
-      await tester.pumpWidget(createWidgetUnderTest(bookNotStarted));
-
-      // Assert
-      expect(find.text('Not started'), findsOneWidget);
-    });
-
-    testWidgets('should display "Unknown" when totalPages is 0', (tester) async {
-      // Arrange
-      final bookNoPages = testBook.copyWith(totalPages: 0);
-
-      // Act
-      await tester.pumpWidget(createWidgetUnderTest(bookNoPages));
-
-      // Assert
-      expect(find.text('Unknown'), findsOneWidget);
     });
 
     testWidgets('should not display optional metadata when not available', (tester) async {

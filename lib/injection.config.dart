@@ -23,6 +23,7 @@ import 'features/library/domain/repositories/library_repository.dart' as _i921;
 import 'features/library/domain/usecases/delete_book.dart' as _i120;
 import 'features/library/domain/usecases/get_all_books.dart' as _i387;
 import 'features/library/domain/usecases/get_recent_books.dart' as _i578;
+import 'features/library/domain/usecases/update_book.dart' as _i814;
 import 'features/reader/domain/usecases/add_bookmark.dart' as _i915;
 import 'features/reader/domain/usecases/add_highlight.dart' as _i354;
 import 'features/reader/domain/usecases/delete_bookmark.dart' as _i916;
@@ -30,7 +31,6 @@ import 'features/reader/domain/usecases/delete_highlight.dart' as _i1015;
 import 'features/reader/domain/usecases/get_bookmarks.dart' as _i574;
 import 'features/reader/domain/usecases/get_highlights.dart' as _i701;
 import 'features/reader/domain/usecases/update_highlight.dart' as _i584;
-import 'features/reader/domain/usecases/update_reading_progress.dart' as _i530;
 import 'shared/services/logger_service.dart' as _i950;
 import 'shared/services/share_service.dart' as _i1028;
 
@@ -50,17 +50,17 @@ extension GetItInjectableX on _i174.GetIt {
     gh.factory<_i915.AddBookmark>(
       () => _i915.AddBookmark(gh<_i111.AppDatabase>()),
     );
-    gh.factory<_i916.DeleteBookmark>(
-      () => _i916.DeleteBookmark(gh<_i111.AppDatabase>()),
-    );
-    gh.factory<_i574.GetBookmarks>(
-      () => _i574.GetBookmarks(gh<_i111.AppDatabase>()),
-    );
     gh.factory<_i354.AddHighlight>(
       () => _i354.AddHighlight(gh<_i111.AppDatabase>()),
     );
+    gh.factory<_i916.DeleteBookmark>(
+      () => _i916.DeleteBookmark(gh<_i111.AppDatabase>()),
+    );
     gh.factory<_i1015.DeleteHighlight>(
       () => _i1015.DeleteHighlight(gh<_i111.AppDatabase>()),
+    );
+    gh.factory<_i574.GetBookmarks>(
+      () => _i574.GetBookmarks(gh<_i111.AppDatabase>()),
     );
     gh.factory<_i701.GetHighlights>(
       () => _i701.GetHighlights(gh<_i111.AppDatabase>()),
@@ -86,8 +86,8 @@ extension GetItInjectableX on _i174.GetIt {
     gh.factory<_i578.GetRecentBooks>(
       () => _i578.GetRecentBooks(gh<_i921.LibraryRepository>()),
     );
-    gh.factory<_i530.UpdateReadingProgress>(
-      () => _i530.UpdateReadingProgress(gh<_i921.LibraryRepository>()),
+    gh.factory<_i814.UpdateBook>(
+      () => _i814.UpdateBook(gh<_i921.LibraryRepository>()),
     );
     return this;
   }

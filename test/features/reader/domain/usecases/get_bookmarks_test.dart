@@ -1,7 +1,6 @@
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:epub_reader/core/database/app_database.dart' as db;
-import 'package:epub_reader/core/error/failures.dart';
 import 'package:epub_reader/features/reader/domain/usecases/get_bookmarks.dart';
 import 'package:flutter_test/flutter_test.dart' hide isNull;
 

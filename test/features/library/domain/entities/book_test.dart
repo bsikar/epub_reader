@@ -15,7 +15,6 @@ void main() {
       description: 'Test description',
       addedDate: testDate,
       lastOpened: testDate,
-      readingProgress: 0.5,
     );
 
     test('should create a Book with all properties', () {
@@ -29,7 +28,6 @@ void main() {
       expect(testBook.description, 'Test description');
       expect(testBook.addedDate, testDate);
       expect(testBook.lastOpened, testDate);
-      expect(testBook.readingProgress, 0.5);
     });
 
     test('should create a Book with only required properties', () {
@@ -49,30 +47,16 @@ void main() {
       expect(minimalBook.language, null);
       expect(minimalBook.description, null);
       expect(minimalBook.lastOpened, null);
-      expect(minimalBook.readingProgress, 0.0);
-    });
-
-    test('should default readingProgress to 0.0', () {
-      final book = Book(
-        title: 'Book',
-        author: 'Author',
-        filePath: '/path.epub',
-        addedDate: testDate,
-      );
-
-      expect(book.readingProgress, 0.0);
     });
 
     test('should create a copy with updated properties', () {
       final updatedBook = testBook.copyWith(
         title: 'Updated Title',
-        readingProgress: 0.75,
       );
 
       expect(updatedBook.id, 1);
       expect(updatedBook.title, 'Updated Title');
       expect(updatedBook.author, 'Test Author');
-      expect(updatedBook.readingProgress, 0.75);
       expect(updatedBook.filePath, testBook.filePath);
     });
 
@@ -134,36 +118,5 @@ void main() {
       expect(updatedBook.title, 'New Title');
     });
 
-    group('Reading Progress', () {
-      test('should accept progress values between 0 and 1', () {
-        final book1 = Book(
-          title: 'Book',
-          author: 'Author',
-          filePath: '/path.epub',
-          addedDate: testDate,
-          readingProgress: 0.0,
-        );
-
-        final book2 = Book(
-          title: 'Book',
-          author: 'Author',
-          filePath: '/path.epub',
-          addedDate: testDate,
-          readingProgress: 0.5,
-        );
-
-        final book3 = Book(
-          title: 'Book',
-          author: 'Author',
-          filePath: '/path.epub',
-          addedDate: testDate,
-          readingProgress: 1.0,
-        );
-
-        expect(book1.readingProgress, 0.0);
-        expect(book2.readingProgress, 0.5);
-        expect(book3.readingProgress, 1.0);
-      });
-    });
   });
 }

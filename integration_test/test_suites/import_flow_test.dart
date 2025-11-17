@@ -1,7 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import '../helpers/test_app.dart';
-import '../helpers/widget_finders.dart';
 import '../helpers/test_actions.dart';
 import '../helpers/test_data.dart';
 
@@ -95,7 +94,6 @@ void main() {
       final book = allBooks.firstWhere((b) => b.id == bookId);
       expect(book.title, 'Complete Book');
       expect(book.author, 'Full Author');
-      expect(book.readingProgress, 0.0);
     });
 
     testWidgets('Import duplicate book handling', (tester) async {

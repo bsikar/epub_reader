@@ -65,8 +65,8 @@ class LibraryScreen extends ConsumerWidget {
               Navigator.pop(context, true);
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
+              backgroundColor: Theme.of(context).colorScheme.error,
+              foregroundColor: Theme.of(context).colorScheme.onError,
             ),
             child: const Text('Delete'),
           ),
@@ -236,53 +236,100 @@ class LibraryScreen extends ConsumerWidget {
   }
 
   Widget _buildGridView(BuildContext context, WidgetRef ref, LibraryState state) {
-    return GridView.builder(
-      padding: const EdgeInsets.all(16),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 0.65,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
+    final screenWidth = MediaQuery.of(context).size.width;
+
+    // Responsive column count based on screen width
+    int crossAxisCount;
+    double childAspectRatio;
+    double padding;
+
+    if (screenWidth >= 1200) {
+      // Large desktop screens
+      crossAxisCount = 6;
+      childAspectRatio = 0.65;
+      padding = 24;
+    } else if (screenWidth >= 900) {
+      // Tablet landscape / small desktop
+      crossAxisCount = 4;
+      childAspectRatio = 0.65;
+      padding = 20;
+    } else if (screenWidth >= 600) {
+      // Tablet portrait
+      crossAxisCount = 3;
+      childAspectRatio = 0.65;
+      padding = 16;
+    } else {
+      // Phone
+      crossAxisCount = 2;
+      childAspectRatio = 0.65;
+      padding = 16;
+    }
+
+    return ScrollConfiguration(
+      behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+      child: GridView.builder(
+        padding: EdgeInsets.all(padding),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: crossAxisCount,
+          childAspectRatio: childAspectRatio,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+        ),
+        itemCount: state.books.length,
+        itemBuilder: (context, index) {
+          final book = state.books[index];
+          return BookGridItem(
+            book: book,
+            isSelectionMode: state.isSelectionMode,
+            isSelected: state.selectedBookIds.contains(book.id),
+            onSelectionChanged: () {
+              ref.read(libraryProvider.notifier).toggleBookSelection(book.id!);
+            },
+          );
+        },
       ),
-      itemCount: state.books.length,
-      itemBuilder: (context, index) {
-        final book = state.books[index];
-        return BookGridItem(
-          book: book,
-          isSelectionMode: state.isSelectionMode,
-          isSelected: state.selectedBookIds.contains(book.id),
-          onSelectionChanged: () {
-            ref.read(libraryProvider.notifier).toggleBookSelection(book.id!);
-          },
-        );
-      },
     );
   }
 
   Widget _buildListView(BuildContext context, WidgetRef ref, LibraryState state) {
-    return ListView.builder(
-      padding: const EdgeInsets.all(8),
-      itemCount: state.books.length,
-      itemBuilder: (context, index) {
-        final book = state.books[index];
-        return BookListItem(
-          book: book,
-          isSelectionMode: state.isSelectionMode,
-          isSelected: state.selectedBookIds.contains(book.id),
-          onSelectionChanged: () {
-            ref.read(libraryProvider.notifier).toggleBookSelection(book.id!);
-          },
-          onDelete: () async {
-            print('LibraryScreen: Single book delete for ${book.title}');
-            await ref.read(libraryProvider.notifier).deleteBook(book);
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('${book.title} deleted')),
-              );
-            }
-          },
-        );
-      },
+    final screenWidth = MediaQuery.of(context).size.width;
+
+    // Responsive padding based on screen width
+    double padding;
+    if (screenWidth >= 900) {
+      padding = 20;
+    } else if (screenWidth >= 600) {
+      padding = 16;
+    } else {
+      padding = 8;
+    }
+
+    return ScrollConfiguration(
+      behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+      child: ListView.builder(
+        padding: EdgeInsets.all(padding),
+        itemCount: state.books.length,
+        itemBuilder: (context, index) {
+          final book = state.books[index];
+          return BookListItem(
+            book: book,
+            isSelectionMode: state.isSelectionMode,
+            isSelected: state.selectedBookIds.contains(book.id),
+            onSelectionChanged: () {
+              ref.read(libraryProvider.notifier).toggleBookSelection(book.id!);
+            },
+            onDelete: () async {
+              print('LibraryScreen: Single book delete for ${book.title}');
+              await ref.read(libraryProvider.notifier).deleteBook(book);
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('${book.title} deleted')),
+                );
+              }
+            },
+          );
+        },
+      ),
     );
   }
 }
