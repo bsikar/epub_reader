@@ -117,6 +117,17 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> with SingleTickerPro
             supportZoom: false,
           ),
         );
+
+        // Register JavaScript handler for screenshot requests from WebView
+        webViewController.addJavaScriptHandler(
+          handlerName: 'takeScreenshot',
+          callback: (args) {
+            debugPrint('WebView requested screenshot via handler');
+            _takeScreenshot();
+            return null;
+          },
+        );
+
         debugPrint('WebView settings configured successfully');
       }
     } catch (e) {
@@ -266,14 +277,26 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> with SingleTickerPro
         }
 
         function blockKeys(e) {
-          var shouldBlock =
-            e.keyCode === 116 || // F5
-            e.keyCode === 123 || // F12
+          var isF5 = e.keyCode === 116;
+          var isF12 = e.keyCode === 123;
+          var isDevTools =
             (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74)) || // Ctrl+Shift+I/J
             (e.ctrlKey && e.keyCode === 85); // Ctrl+U
 
-          if (shouldBlock) {
-            console.log('[EPUB] Blocked key:', e.keyCode, e.key);
+          if (isF5 || isF12) {
+            console.log('[EPUB] Blocked screenshot key:', e.keyCode, e.key);
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+
+            // Notify Flutter to take screenshot
+            window.flutter_inappwebview.callHandler('takeScreenshot', { key: e.keyCode });
+
+            return false;
+          }
+
+          if (isDevTools) {
+            console.log('[EPUB] Blocked dev tools key:', e.keyCode, e.key);
             e.preventDefault();
             e.stopPropagation();
             e.stopImmediatePropagation();
