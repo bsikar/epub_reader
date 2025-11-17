@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:intl/intl.dart';
 
 class ReaderScreen extends ConsumerStatefulWidget {
@@ -80,6 +81,9 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> with SingleTickerPro
 
       await Future.delayed(const Duration(milliseconds: 300));
 
+      // Configure WebView settings directly to disable keyboard shortcuts
+      await _configureWebViewSettings();
+
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -94,6 +98,30 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> with SingleTickerPro
           _errorMessage = 'Failed to load EPUB: ${e.toString()}';
         });
       }
+    }
+  }
+
+  Future<void> _configureWebViewSettings() async {
+    try {
+      // Wait a bit more to ensure WebView is fully initialized
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      final webViewController = _epubController?.webViewController;
+      if (webViewController != null) {
+        // Try to set settings to disable browser accelerator keys
+        // This may not work on all versions, but worth trying
+        await webViewController.setSettings(
+          settings: InAppWebViewSettings(
+            isInspectable: false,
+            disableContextMenu: true,
+            supportZoom: false,
+          ),
+        );
+        debugPrint('WebView settings configured successfully');
+      }
+    } catch (e) {
+      debugPrint('Error configuring WebView settings: $e');
+      // Continue anyway - we'll rely on JavaScript blocking
     }
   }
 
@@ -199,10 +227,13 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> with SingleTickerPro
   }
 
   void _injectWebViewCustomizations() {
-    // Disable scrolling in the WebView, but allow F12 to bubble up for screenshots
+    // Disable scrolling in the WebView and block F5/F12
+    // This uses a more aggressive approach that survives page reloads
     _epubController?.webViewController?.evaluateJavascript(source: '''
       (function() {
-        // Remove any existing customizations first
+        console.log('[EPUB] Injecting customizations...');
+
+        // Always re-apply styles
         var existingStyle = document.getElementById('epub-custom-style');
         if (existingStyle) existingStyle.remove();
 
@@ -228,41 +259,87 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> with SingleTickerPro
         \`;
         document.head.appendChild(style);
 
-        // Remove existing event listeners by cloning
-        if (!window._epubCustomizationsApplied) {
-          window._epubCustomizationsApplied = true;
+        // Define event handlers as named functions (easier to debug)
+        function blockScroll(e) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+        }
 
-          // Disable scroll events
-          window.addEventListener('wheel', function(e) {
+        function blockKeys(e) {
+          var shouldBlock =
+            e.keyCode === 116 || // F5
+            e.keyCode === 123 || // F12
+            (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74)) || // Ctrl+Shift+I/J
+            (e.ctrlKey && e.keyCode === 85); // Ctrl+U
+
+          if (shouldBlock) {
+            console.log('[EPUB] Blocked key:', e.keyCode, e.key);
             e.preventDefault();
-            e.stopImmediatePropagation();
-          }, { passive: false, capture: true });
-
-          window.addEventListener('touchmove', function(e) {
-            e.preventDefault();
-            e.stopImmediatePropagation();
-          }, { passive: false, capture: true });
-
-          // Block F5 (refresh), F12 (dev tools), and other developer shortcuts
-          window.addEventListener('keydown', function(e) {
-            if (e.key === 'F5' || e.keyCode === 116 ||
-                e.key === 'F12' || e.keyCode === 123 ||
-                (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'i')) ||
-                (e.ctrlKey && e.shiftKey && (e.key === 'J' || e.key === 'j')) ||
-                (e.ctrlKey && (e.key === 'U' || e.key === 'u'))) {
-              e.preventDefault();
-              e.stopPropagation();
-              return false;
-            }
-          }, true); // Use capture phase to intercept early
-
-          // Prevent context menu which can open dev tools
-          window.addEventListener('contextmenu', function(e) {
-            e.preventDefault();
+            e.stopPropagation();
             e.stopImmediatePropagation();
             return false;
-          }, { passive: false, capture: true });
+          }
         }
+
+        function blockContextMenu(e) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          return false;
+        }
+
+        // Remove existing listeners first (if they exist)
+        if (window._epubEventHandlers) {
+          console.log('[EPUB] Removing old event handlers');
+          window.removeEventListener('wheel', window._epubEventHandlers.scroll, true);
+          document.removeEventListener('wheel', window._epubEventHandlers.scroll, true);
+          window.removeEventListener('touchmove', window._epubEventHandlers.scroll, true);
+          document.removeEventListener('touchmove', window._epubEventHandlers.scroll, true);
+          window.removeEventListener('keydown', window._epubEventHandlers.keys, true);
+          document.removeEventListener('keydown', window._epubEventHandlers.keys, true);
+          window.removeEventListener('contextmenu', window._epubEventHandlers.context, true);
+          document.removeEventListener('contextmenu', window._epubEventHandlers.context, true);
+        }
+
+        // Store handlers for potential removal later
+        window._epubEventHandlers = {
+          scroll: blockScroll,
+          keys: blockKeys,
+          context: blockContextMenu
+        };
+
+        // Attach event listeners with capture=true for highest priority
+        window.addEventListener('wheel', blockScroll, { passive: false, capture: true });
+        document.addEventListener('wheel', blockScroll, { passive: false, capture: true });
+        window.addEventListener('touchmove', blockScroll, { passive: false, capture: true });
+        document.addEventListener('touchmove', blockScroll, { passive: false, capture: true });
+
+        // CRITICAL: Block keyboard events
+        window.addEventListener('keydown', blockKeys, { passive: false, capture: true });
+        document.addEventListener('keydown', blockKeys, { passive: false, capture: true });
+
+        // Block context menu
+        window.addEventListener('contextmenu', blockContextMenu, { passive: false, capture: true });
+        document.addEventListener('contextmenu', blockContextMenu, { passive: false, capture: true });
+
+        // Mark as applied
+        window._epubCustomizationsApplied = true;
+        console.log('[EPUB] Customizations applied successfully');
+
+        // Re-inject on any iframe load (epub.js uses iframes)
+        setTimeout(function() {
+          var iframes = document.querySelectorAll('iframe');
+          iframes.forEach(function(iframe) {
+            try {
+              if (iframe.contentDocument) {
+                var iframeDoc = iframe.contentDocument;
+                iframeDoc.addEventListener('keydown', blockKeys, { passive: false, capture: true });
+                console.log('[EPUB] Applied to iframe');
+              }
+            } catch(e) {
+              console.log('[EPUB] Cannot access iframe (cross-origin):', e);
+            }
+          });
+        }, 500);
       })();
     ''');
   }
@@ -468,6 +545,10 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> with SingleTickerPro
                     onEpubLoaded: () {
                       _hideScrollbars();
                     },
+                    onRelocated: (location) {
+                      // Re-inject customizations after any page navigation/reload
+                      _injectWebViewCustomizations();
+                    },
                   ),
                 ),
               ),
@@ -642,8 +723,13 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> with SingleTickerPro
       await _epubController?.setFontSize(_fontSize);
       await Future.delayed(const Duration(milliseconds: 300));
       await _epubController?.display(cfi: savedCfi);
-      // Re-inject customizations after font size change
-      await Future.delayed(const Duration(milliseconds: 100));
+      // Re-inject customizations multiple times to ensure they stick
+      // The WebView might reload during font size/position changes
+      await Future.delayed(const Duration(milliseconds: 200));
+      _injectWebViewCustomizations();
+      await Future.delayed(const Duration(milliseconds: 300));
+      _injectWebViewCustomizations();
+      await Future.delayed(const Duration(milliseconds: 500));
       _injectWebViewCustomizations();
     }
   }
