@@ -229,7 +229,13 @@ void main() {
 
       print('Tapping slider at 75% (${tapX.toInt()}, ${tapY.toInt()})');
       await tester.tapAt(Offset(tapX, tapY));
-      await tester.pumpAndSettle(const Duration(seconds: 3));
+
+      // Wait a bit longer and pump multiple times to allow navigation to complete
+      for (int i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 300));
+        print('Pump $i: Chapter indicator shows: ${getChapter()}');
+      }
+      await tester.pumpAndSettle(const Duration(seconds: 2));
 
       final newSliderWidget = tester.widget<Slider>(sliderFinder);
       final newValue = newSliderWidget.value;
@@ -237,7 +243,7 @@ void main() {
 
       print('New slider: $newValue / $maxValue');
       print('New chapter: $newChapter');
-      print('RESULT: Slider ${initialValue} -> $newValue, Chapter: $initialChapter -> $newChapter');
+      print('RESULT: Slider ${initialValue.toStringAsFixed(1)} -> ${newValue.toStringAsFixed(1)}, Chapter: $initialChapter -> $newChapter');
 
       if (newChapter == initialChapter) {
         print('WARNING: Chapter did NOT change after slider tap!');

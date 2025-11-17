@@ -29,6 +29,7 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> {
   List<EpubChapter>? _chapters;
   List<EpubChapter>? _filteredChapters; // Chapters without footer
   Timer? _progressSaveTimer;
+  Timer? _chapterUpdateTimer; // Frequent timer for real-time chapter updates
   String? _currentCfi;
   int _currentChapterIndex = 0;
   bool _showProgressBar = true;
@@ -69,6 +70,27 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> {
     _progressSaveTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
       _saveProgress();
     });
+
+    // Update chapter indicator in real-time (every 300ms)
+    _chapterUpdateTimer = Timer.periodic(const Duration(milliseconds: 300), (timer) {
+      _updateChapterIndicator();
+    });
+  }
+
+  void _updateChapterIndicator() {
+    if (_epubController == null || _filteredChapters == null) return;
+
+    try {
+      final cfi = _epubController!.generateEpubCfi();
+      if (cfi != null && cfi != _currentCfi) {
+        // Don't update _currentCfi here (that's for saving), just update the UI
+        if (!cfi.contains('[pg-footer-heading]') && !cfi.contains('[pg-header]')) {
+          _updateChapterFromCfi(cfi);
+        }
+      }
+    } catch (e) {
+      // Silently ignore errors during frequent updates
+    }
   }
 
   Future<void> _saveProgress() async {
@@ -180,6 +202,7 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> {
   @override
   void dispose() {
     _progressSaveTimer?.cancel();
+    _chapterUpdateTimer?.cancel();
     _navigationTimer?.cancel();
     _saveProgress(); // Save one last time before disposing
     _epubController?.dispose();
@@ -568,11 +591,10 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> {
     final chapter = _filteredChapters![chapterIndex];
     debugPrint('Navigating to chapter $chapterIndex: "${chapter.Title}" (Anchor: ${chapter.Anchor})');
     if (chapter.Anchor != null) {
-      // Construct proper CFI format for navigation
-      // Format: epubcfi(/6/30[pg-footer]!/4/2[anchor]/1)
-      final cfi = 'epubcfi(/6/30[pg-footer]!/4/2[${chapter.Anchor}])';
-      _epubController?.gotoEpubCfi(cfi);
-      debugPrint('Called gotoEpubCfi with: $cfi');
+      // Try using the anchor ID directly as a fragment identifier
+      final anchor = '#${chapter.Anchor}';
+      _epubController?.gotoEpubCfi(anchor);
+      debugPrint('Called gotoEpubCfi with anchor: $anchor');
     } else {
       debugPrint('WARNING: Chapter $chapterIndex has no Anchor!');
     }
