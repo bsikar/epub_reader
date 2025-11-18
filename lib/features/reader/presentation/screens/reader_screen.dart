@@ -62,7 +62,7 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> with SingleTickerPro
   }
 
   void _startProgressTracking() {
-    _progressTracker = Timer.periodic(const Duration(seconds: 2), (timer) {
+    _progressTracker = Timer.periodic(const Duration(milliseconds: 500), (timer) {
       if (_epubController != null && mounted && !_isLoading && _epubFullyLoaded) {
         _epubController!.getCurrentLocation().then((location) {
           if (location != null && location.startCfi != null && location.startCfi!.isNotEmpty) {
@@ -686,6 +686,10 @@ class ReaderScreenState extends ConsumerState<ReaderScreen> with SingleTickerPro
                     onRelocated: (location) {
                       // Re-inject customizations after any page navigation/reload
                       _injectWebViewCustomizations();
+                      // Immediately save position on navigation for fast progress updates
+                      if (location != null && location.startCfi != null && location.startCfi!.isNotEmpty) {
+                        _savePosition(location.startCfi!);
+                      }
                     },
                   ),
                 ),

@@ -12,7 +12,11 @@
       "Bash(dart run build_runner build:*)",
       "Bash(flutter test:*)",
       "Bash(del test_chapter_navigation.bat test_navigation.ps1)",
-      "Bash(where:*)"
+      "Bash(where:*)",
+      "Bash(flutter:*)",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__get-library-docs",
+      "WebFetch(domain:pub.dev)"
     ],
     "deny": [],
     "ask": []

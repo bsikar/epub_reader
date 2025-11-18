@@ -1,5 +1,10 @@
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
+import 'package:flutter/foundation.dart';
+
+// Conditional import for web support
+import 'database_helper_stub.dart'
+    if (dart.library.html) 'database_helper_web.dart' as platform;
 
 part 'app_database.g.dart';
 
@@ -248,5 +253,11 @@ class AppDatabase extends _$AppDatabase {
 }
 
 QueryExecutor _openConnection() {
-  return driftDatabase(name: 'epub_reader_db');
+  if (kIsWeb) {
+    // For web platform, use the conditional import
+    return platform.openWebConnection();
+  } else {
+    // For desktop/mobile platforms
+    return driftDatabase(name: 'epub_reader_db');
+  }
 }

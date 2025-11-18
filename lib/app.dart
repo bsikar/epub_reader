@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 import 'package:epub_reader/core/config/theme.dart';
 import 'package:epub_reader/features/library/presentation/screens/library_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -49,6 +50,9 @@ class _EPUBReaderAppState extends ConsumerState<EPUBReaderApp> {
   }
 
   Future<void> _takeScreenshot() async {
+    // Screenshots on web are handled differently, skip for now
+    if (kIsWeb) return;
+    
     try {
       final RenderRepaintBoundary? boundary = _screenshotKey.currentContext
           ?.findRenderObject() as RenderRepaintBoundary?;
@@ -105,7 +109,7 @@ class _EPUBReaderAppState extends ConsumerState<EPUBReaderApp> {
         ): _takeScreenshot,
       },
       child: Focus(
-        autofocus: true,
+        autofocus: !kIsWeb, // Disable autofocus on web to prevent layout issues
         child: RepaintBoundary(
           key: _screenshotKey,
           child: MaterialApp(

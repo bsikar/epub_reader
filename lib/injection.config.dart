@@ -42,31 +42,31 @@ extension GetItInjectableX on _i174.GetIt {
   }) {
     final gh = _i526.GetItHelper(this, environment, environmentFilter);
     gh.singleton<_i476.StoragePathService>(() => _i476.StoragePathService());
-    gh.singleton<_i950.LoggerService>(() => _i950.LoggerService());
     gh.singleton<_i1028.ShareService>(() => _i1028.ShareService());
-    gh.factory<_i856.LibraryLocalDataSource>(
-      () => _i856.LibraryLocalDataSource(gh<_i111.AppDatabase>()),
-    );
-    gh.factory<_i915.AddBookmark>(
-      () => _i915.AddBookmark(gh<_i111.AppDatabase>()),
+    gh.singleton<_i950.LoggerService>(() => _i950.LoggerService());
+    gh.factory<_i701.GetHighlights>(
+      () => _i701.GetHighlights(gh<_i111.AppDatabase>()),
     );
     gh.factory<_i354.AddHighlight>(
       () => _i354.AddHighlight(gh<_i111.AppDatabase>()),
     );
-    gh.factory<_i916.DeleteBookmark>(
-      () => _i916.DeleteBookmark(gh<_i111.AppDatabase>()),
+    gh.factory<_i574.GetBookmarks>(
+      () => _i574.GetBookmarks(gh<_i111.AppDatabase>()),
     );
     gh.factory<_i1015.DeleteHighlight>(
       () => _i1015.DeleteHighlight(gh<_i111.AppDatabase>()),
     );
-    gh.factory<_i574.GetBookmarks>(
-      () => _i574.GetBookmarks(gh<_i111.AppDatabase>()),
-    );
-    gh.factory<_i701.GetHighlights>(
-      () => _i701.GetHighlights(gh<_i111.AppDatabase>()),
-    );
     gh.factory<_i584.UpdateHighlight>(
       () => _i584.UpdateHighlight(gh<_i111.AppDatabase>()),
+    );
+    gh.factory<_i915.AddBookmark>(
+      () => _i915.AddBookmark(gh<_i111.AppDatabase>()),
+    );
+    gh.factory<_i916.DeleteBookmark>(
+      () => _i916.DeleteBookmark(gh<_i111.AppDatabase>()),
+    );
+    gh.factory<_i856.LibraryLocalDataSource>(
+      () => _i856.LibraryLocalDataSource(gh<_i111.AppDatabase>()),
     );
     gh.factory<_i921.LibraryRepository>(
       () => _i1002.LibraryRepositoryImpl(gh<_i856.LibraryLocalDataSource>()),
@@ -77,17 +77,17 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i476.StoragePathService>(),
       ),
     );
-    gh.factory<_i120.DeleteBook>(
-      () => _i120.DeleteBook(gh<_i921.LibraryRepository>()),
-    );
     gh.factory<_i387.GetAllBooks>(
       () => _i387.GetAllBooks(gh<_i921.LibraryRepository>()),
+    );
+    gh.factory<_i814.UpdateBook>(
+      () => _i814.UpdateBook(gh<_i921.LibraryRepository>()),
     );
     gh.factory<_i578.GetRecentBooks>(
       () => _i578.GetRecentBooks(gh<_i921.LibraryRepository>()),
     );
-    gh.factory<_i814.UpdateBook>(
-      () => _i814.UpdateBook(gh<_i921.LibraryRepository>()),
+    gh.factory<_i120.DeleteBook>(
+      () => _i120.DeleteBook(gh<_i921.LibraryRepository>()),
     );
     return this;
   }
